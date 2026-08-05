@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Food Share Connect
 
 # Build Prompt: Food-Waste Redistribution System
@@ -162,3 +163,6 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+=======
+# FeedForward
+>>>>>>> 2cac07e1209fb53a06e8f2fea048acd7121e23a2
