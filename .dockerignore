@@ -1,0 +1,14 @@
+node_modules
+.git
+.env
+.env.*
+backend/.env
+backend/.env.*
+**/.venv
+**/__pycache__
+**/.pytest_cache
+.output
+.wrangler
+.tanstack
+playwright-report
+test-results

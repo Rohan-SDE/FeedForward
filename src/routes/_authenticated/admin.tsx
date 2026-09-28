@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { adminOverview, setVerified } from "@/lib/feedforward.functions";
 import type { Row } from "@/lib/rows";
 import { Button } from "@/components/ui/button";
+import FeedbackSection from "@/components/FeedbackSection";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -26,11 +26,11 @@ function Admin() {
   const qc = useQueryClient();
   const overview = useQuery({
     queryKey: ["adminOverview"],
-    queryFn: useServerFn(adminOverview),
+    queryFn: adminOverview,
     retry: false,
   });
   const verify = useMutation({
-    mutationFn: useServerFn(setVerified),
+    mutationFn: setVerified,
     onSuccess: () => {
       toast.success("Updated");
       qc.invalidateQueries({ queryKey: ["adminOverview"] });
@@ -81,6 +81,8 @@ function Admin() {
           </div>
         ))}
       </div>
+
+      <FeedbackSection pickups={[]} roles={["admin"]} />
     </div>
   );
 }

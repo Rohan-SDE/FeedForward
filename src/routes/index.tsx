@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Clock, Leaf, MapPin, Route as RouteIcon, ShieldCheck } from "lucide-react";
-import heroImage from "@/assets/hero-rescue.jpg";
+import { RescueScene } from "@/components/RescueScene";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
@@ -47,17 +47,17 @@ const features = [
   {
     icon: Clock,
     title: "Freshness first",
-    body: "Colour-coded safe-window tracking by storage type means nothing gets claimed after it should have been eaten.",
+    body: "Preparation and best-before times help prioritise collections. Donors remain responsible for safe storage and accurate food information.",
   },
   {
     icon: RouteIcon,
     title: "Optimised pickup routes",
-    body: "Multiple pickups scheduled? Stops are reordered to cut total driving time using live traffic-aware routing.",
+    body: "Multiple pickups scheduled? Stops are ordered using approximate distances, with navigation links for your journey.",
   },
   {
     icon: ShieldCheck,
     title: "Verified organisations",
-    body: "Admins verify donors and NGOs so food only moves between accountable, real organisations.",
+    body: "Admins can review donors and NGOs and mark verified organisations, helping you make informed collection decisions.",
   },
 ];
 
@@ -102,15 +102,7 @@ function Landing() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-border shadow-[var(--shadow-lift)]">
-          <img
-            src={heroImage}
-            alt="Volunteers handing trays of surplus cooked food into insulated crates behind a restaurant kitchen"
-            width={1600}
-            height={1104}
-            className="h-full w-full object-cover"
-          />
-        </div>
+        <RescueScene />
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-12">

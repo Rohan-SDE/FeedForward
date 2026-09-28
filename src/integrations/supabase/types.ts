@@ -64,6 +64,91 @@ export type Database = {
           },
         ];
       };
+      delivery_verifications: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          failed_attempts: number;
+          ngo_id: string;
+          pickup_id: string;
+          pin_code: string;
+          verified_at: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          failed_attempts?: number;
+          ngo_id: string;
+          pickup_id: string;
+          pin_code: string;
+          verified_at?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          failed_attempts?: number;
+          ngo_id?: string;
+          pickup_id?: string;
+          pin_code?: string;
+          verified_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "delivery_verifications_pickup_id_fkey";
+            columns: ["pickup_id"];
+            isOneToOne: true;
+            referencedRelation: "pickups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      delivery_feedback: {
+        Row: {
+          category: Database["public"]["Enums"]["feedback_category"];
+          comment: string;
+          created_at: string;
+          id: string;
+          pickup_id: string;
+          rating: number;
+          reviewer_id: string;
+          reviewer_role: Database["public"]["Enums"]["app_role"];
+          subject_id: string;
+          subject_role: Database["public"]["Enums"]["app_role"];
+        };
+        Insert: {
+          category: Database["public"]["Enums"]["feedback_category"];
+          comment: string;
+          created_at?: string;
+          id?: string;
+          pickup_id: string;
+          rating: number;
+          reviewer_id: string;
+          reviewer_role: Database["public"]["Enums"]["app_role"];
+          subject_id: string;
+          subject_role: Database["public"]["Enums"]["app_role"];
+        };
+        Update: {
+          category?: Database["public"]["Enums"]["feedback_category"];
+          comment?: string;
+          created_at?: string;
+          id?: string;
+          pickup_id?: string;
+          rating?: number;
+          reviewer_id?: string;
+          reviewer_role?: Database["public"]["Enums"]["app_role"];
+          subject_id?: string;
+          subject_role?: Database["public"]["Enums"]["app_role"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "delivery_feedback_pickup_id_fkey";
+            columns: ["pickup_id"];
+            isOneToOne: false;
+            referencedRelation: "pickups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       food_listings: {
         Row: {
           allergens: string | null;
@@ -307,6 +392,23 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accept_delivery_request: { Args: { _pickup_id: string }; Returns: boolean };
+      can_access_claim: { Args: { _claim_id: string }; Returns: boolean };
+      can_access_listing: { Args: { _listing_id: string }; Returns: boolean };
+      can_access_pickup: { Args: { _pickup_id: string }; Returns: boolean };
+      can_access_profile: { Args: { _profile_id: string }; Returns: boolean };
+      claim_food_listing: {
+        Args: {
+          _claimed_quantity: number;
+          _listing_id: string;
+          _note?: string | null;
+        };
+        Returns: string;
+      };
+      create_delivery_request: {
+        Args: { _claim_id: string; _scheduled_time: string };
+        Returns: { delivery_pin: string; pickup_id: string }[];
+      };
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"];
@@ -314,7 +416,31 @@ export type Database = {
         };
         Returns: boolean;
       };
+      has_current_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] };
+        Returns: boolean;
+      };
       is_admin: { Args: never; Returns: boolean };
+      my_submitted_feedback_keys: {
+        Args: never;
+        Returns: {
+          category: Database["public"]["Enums"]["feedback_category"];
+          pickup_id: string;
+        }[];
+      };
+      submit_delivery_feedback: {
+        Args: {
+          _category: Database["public"]["Enums"]["feedback_category"];
+          _comment: string;
+          _pickup_id: string;
+          _rating: number;
+        };
+        Returns: string;
+      };
+      verify_delivery_pin: {
+        Args: { _pickup_id: string; _pin: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       app_role: "donor" | "ngo" | "volunteer" | "admin";
@@ -327,6 +453,7 @@ export type Database = {
         | "completed"
         | "cancelled";
       diet_tag: "veg" | "non_veg" | "vegan" | "mixed";
+      feedback_category: "delivery_partner" | "food" | "food_receiver" | "restaurant";
       listing_status:
         | "posted"
         | "claimed"

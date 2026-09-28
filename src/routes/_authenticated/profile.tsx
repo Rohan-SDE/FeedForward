@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { saveProfile } from "@/lib/feedforward.functions";
+import { saveProfile, setMyRole } from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,9 +31,17 @@ function Profile() {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const save = useMutation({
-    mutationFn: useServerFn(saveProfile),
+    mutationFn: saveProfile,
     onSuccess: () => {
       toast.success("Profile saved");
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const chooseRole = useMutation({
+    mutationFn: setMyRole,
+    onSuccess: () => {
+      toast.success("Account role saved");
       qc.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -119,6 +126,29 @@ function Profile() {
           </p>
         ) : null}
       </div>
+
+      {me && !me.roles.length && (
+        <section className="surface-panel p-6">
+          <h2 className="text-lg font-semibold">Choose your account role</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This choice controls what your account can do and cannot be changed later without an
+            administrator.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(["donor", "ngo", "volunteer"] as const).map((role) => (
+              <Button
+                key={role}
+                type="button"
+                variant="outline"
+                disabled={chooseRole.isPending}
+                onClick={() => chooseRole.mutate({ data: { role } })}
+              >
+                {role === "ngo" ? "NGO / shelter" : role[0]!.toUpperCase() + role.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <form onSubmit={submit} className="surface-panel grid gap-5 p-6">
         <div className="grid gap-4 sm:grid-cols-2">

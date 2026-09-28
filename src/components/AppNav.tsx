@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useMe";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const links = [
   { to: "/dashboard", label: "Dashboard" },
@@ -24,6 +25,7 @@ export function AppNav() {
   const [open, setOpen] = useState(false);
 
   const isAdmin = !!me?.roles.includes("admin");
+  const canDonate = isAdmin || !!me?.roles.includes("donor");
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -32,7 +34,8 @@ export function AppNav() {
     navigate({ to: "/auth", replace: true });
   }
 
-  const items = isAdmin ? [...links, { to: "/admin", label: "Admin" } as const] : links;
+  const roleLinks = links.filter((link) => link.to !== "/donate" || canDonate);
+  const items = isAdmin ? [...roleLinks, { to: "/admin", label: "Admin" } as const] : roleLinks;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur">
@@ -60,6 +63,7 @@ export function AppNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <NotificationBell />
           <span className="hidden max-w-[14rem] truncate text-sm text-muted-foreground sm:block">
             {me?.profile?.org_name || me?.profile?.full_name || ""}
           </span>

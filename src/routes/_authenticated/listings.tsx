@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MapPin, Search, SlidersHorizontal } from "lucide-react";
@@ -17,6 +16,7 @@ import {
   type StorageTemp,
 } from "@/lib/food";
 import { UrgencyBadge } from "@/components/UrgencyBadge";
+import FoodPhoto from "@/components/FoodPhoto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,9 +59,14 @@ export const Route = createFileRoute("/_authenticated/listings")({
 function Listings() {
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const listings = useQuery({ queryKey: ["browse"], queryFn: useServerFn(browseListings) });
+  const canClaim = !!me?.roles.includes("ngo");
+  const listings = useQuery({
+    queryKey: ["browse"],
+    queryFn: browseListings,
+    refetchInterval: 10_000,
+  });
   const claim = useMutation({
-    mutationFn: useServerFn(claimListing),
+    mutationFn: claimListing,
     onSuccess: () => {
       toast.success("Claimed — now schedule the pickup");
       setActive(null);
@@ -223,6 +228,7 @@ function Listings() {
       <div className="grid gap-4 md:grid-cols-2">
         {rows.map((l) => (
           <article key={l.id} className="surface-panel flex flex-col gap-3 p-5">
+            <FoodPhoto src={l.photo_url} alt={`${l.title} food`} className="h-44 w-full" />
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-semibold">{l.title}</h2>
@@ -268,13 +274,15 @@ function Listings() {
               </span>
               <Button
                 size="sm"
+                disabled={!canClaim}
+                title={canClaim ? "Claim this food" : "Only NGO accounts can claim food"}
                 onClick={() => {
                   setActive(l);
                   setClaimQty(String(l.remaining));
                   setNote("");
                 }}
               >
-                Claim food
+                {canClaim ? "Claim food" : "NGO account required"}
               </Button>
             </div>
           </article>
