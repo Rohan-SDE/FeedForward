@@ -98,7 +98,7 @@ function Pickups() {
   const accept = useMutation({
     mutationFn: acceptDeliveryRequest,
     onSuccess: (result) => {
-      toast.success("Delivery accepted — it is now assigned to you");
+      toast.success("Delivery accepted — opening navigation and location sharing");
       qc.invalidateQueries();
       navigate({
         to: "/delivery/$pickupId",
@@ -229,7 +229,7 @@ function Pickups() {
                 disabled={accept.isPending}
                 onClick={() => accept.mutate({ data: { pickup_id: request.id } })}
               >
-                Accept delivery
+                Accept & share location
               </Button>
             </div>
           ))}

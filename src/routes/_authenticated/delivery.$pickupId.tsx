@@ -341,7 +341,7 @@ function DeliveryNavigation() {
       {!completed &&
         !cancelled &&
         (isVolunteer ? (
-          <RiderSharing pickupId={pickupId} />
+          <RiderSharing key={pickupId} pickupId={pickupId} />
         ) : (
           <DeliveryTracking pickupId={pickupId} />
         ))}

@@ -10,9 +10,9 @@ import {
 } from "@/lib/feedforward.functions";
 
 export function RiderSharing({ pickupId }: { pickupId?: string }) {
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(Boolean(pickupId));
   const [stopping, setStopping] = useState(false);
-  const sharing = useRef(false);
+  const sharing = useRef(Boolean(pickupId));
   const pending = useRef<Promise<unknown>>(Promise.resolve());
   const [message, setMessage] = useState("");
   const lastPosition = useRef<{ latitude: number; longitude: number }>({
@@ -22,6 +22,13 @@ export function RiderSharing({ pickupId }: { pickupId?: string }) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
+    if (!navigator.geolocation) {
+      sharing.current = false;
+      setEnabled(false);
+      setMessage("Geolocation is unavailable in this browser.");
+      return;
+    }
+    setMessage("Requesting location permission…");
     let alive = true;
     let busy = false;
     const send = () => {
@@ -102,7 +109,7 @@ export function RiderSharing({ pickupId }: { pickupId?: string }) {
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">
         {pickupId
-          ? "Share your GPS position with the receiving NGO for this active delivery."
+          ? "Location sharing starts automatically for this active delivery. Allow browser location permission to share your GPS position with the receiving NGO."
           : "Go available to allow nearby deliveries to be assigned to you automatically, one at a time."}{" "}
         Keep this page open and your phone awake. Browser tracking stops when the page is closed or
         suspended.
@@ -173,8 +180,8 @@ export function DeliveryTracking({ pickupId }: { pickupId: string }) {
         </>
       ) : (
         <p className="mt-2 text-sm text-muted-foreground">
-          No recent location shared. The assigned rider must open this delivery and tap “Start
-          sharing location”.
+          Waiting for the rider’s location. Sharing starts automatically when the assigned rider
+          opens this delivery, provided browser location permission is allowed.
         </p>
       )}
     </section>
