@@ -83,8 +83,8 @@ async function schedule(c) {
     )
   )[0];
 }
-await test("all 13 migrations apply", async () =>
-  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 13));
+await test("all 14 migrations apply", async () =>
+  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 14));
 await test("volunteer donation denied", async () => {
   await assert.rejects(
     asUser(
@@ -326,6 +326,80 @@ if (realDatabase) {
     );
   });
 }
+await test("automatic dispatch respects availability, capacity and tracking privacy", async () => {
+  await db.exec(
+    "UPDATE public.pickups SET status='cancelled' WHERE status NOT IN ('completed','cancelled')",
+  );
+  const l = (
+    await db.query(
+      `INSERT INTO public.food_listings(donor_id,title,food_type,quantity,unit,prepared_at,best_before,pickup_address,latitude,longitude) VALUES($1,'Dispatch test','Rice',10,'servings',now(),now()+interval '4 hours','Test address',22,88) RETURNING id`,
+      [ids.donor],
+    )
+  ).rows[0].id;
+  await assert.rejects(asUser("ngo", "SELECT public.set_rider_presence(true,22,88)"), /Volunteer/);
+  await asUser("volunteer", "SELECT public.set_rider_presence(true,22,88)");
+  const c = (await asUser("ngo", "SELECT public.claim_with_delivery($1,2,NULL) AS id", [l]))[0].id;
+  const p = (await db.query("SELECT * FROM public.pickups WHERE claim_id=$1", [c])).rows[0];
+  assert.equal(p.volunteer_id, ids.volunteer);
+  const c2 = (await asUser("ngo2", "SELECT public.claim_with_delivery($1,2,NULL) AS id", [l]))[0]
+    .id;
+  const p2 = (await db.query("SELECT * FROM public.pickups WHERE claim_id=$1", [c2])).rows[0];
+  assert.equal(p2.volunteer_id, null);
+  await assert.rejects(
+    asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p2.id]),
+    /active delivery/,
+  );
+  await asUser("volunteer", "SELECT public.share_delivery_location($1,22.01,88.01,10)", [p.id]);
+  assert.equal(
+    (await asUser("ngo", "SELECT * FROM public.read_delivery_location($1)", [p.id])).length,
+    1,
+  );
+  await assert.rejects(
+    asUser("ngo2", "SELECT * FROM public.read_delivery_location($1)", [p.id]),
+    /not found/,
+  );
+  await assert.rejects(
+    asUser("other", "SELECT public.share_delivery_location($1,22,88,10)", [p.id]),
+    /assigned delivery/,
+  );
+  await assert.rejects(
+    asUser("ngo", "SELECT * FROM public.delivery_locations"),
+    /permission denied/,
+  );
+  await asUser("volunteer", "SELECT public.stop_delivery_location($1)", [p.id]);
+  assert.equal(
+    (await asUser("ngo", "SELECT * FROM public.read_delivery_location($1)", [p.id])).length,
+    0,
+  );
+  await asUser("volunteer", "SELECT public.share_delivery_location($1,22.01,88.01,10)", [p.id]);
+  await db.query(
+    "UPDATE public.delivery_locations SET updated_at=now()-interval '6 minutes' WHERE pickup_id=$1",
+    [p.id],
+  );
+  assert.equal(
+    (await asUser("ngo", "SELECT * FROM public.read_delivery_location($1)", [p.id])).length,
+    0,
+  );
+  await db.query("UPDATE public.pickups SET status='cancelled' WHERE id=$1", [p.id]);
+  assert.equal(
+    (await db.query("SELECT * FROM public.delivery_locations WHERE pickup_id=$1", [p.id])).rows
+      .length,
+    0,
+  );
+  await asUser("volunteer", "SELECT public.set_rider_presence(false,22,88)");
+  await db.exec("SELECT feedforward_private.dispatch_waiting()");
+  assert.equal(
+    (await db.query("SELECT volunteer_id FROM public.pickups WHERE id=$1", [p2.id])).rows[0]
+      .volunteer_id,
+    null,
+  );
+  await asUser("other", "SELECT public.set_rider_presence(true,22,88)");
+  assert.equal(
+    (await db.query("SELECT volunteer_id FROM public.pickups WHERE id=$1", [p2.id])).rows[0]
+      .volunteer_id,
+    ids.other,
+  );
+});
 console.log(
   `${passed} database checks passed (${realDatabase ? "PostgreSQL + concurrent claim test" : "single-session PGlite; no concurrency/load test"})`,
 );

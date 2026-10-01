@@ -1,3 +1,4 @@
+import { RiderSharing } from "@/components/RiderLive";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -72,7 +73,7 @@ function Pickups() {
   const isVolunteer = !!me?.roles.includes("volunteer");
   const isAdmin = !!me?.roles.includes("admin");
   const claims = useQuery({ queryKey: ["myClaims"], queryFn: myClaims });
-  const pickups = useQuery({ queryKey: ["pickups"], queryFn: listPickups });
+  const pickups = useQuery({ queryKey: ["pickups"], queryFn: listPickups, refetchInterval: 10000 });
   const offers = useQuery({
     queryKey: ["nearbyDeliveryRequests"],
     queryFn: listNearbyDeliveryRequests,
@@ -190,6 +191,7 @@ function Pickups() {
         </p>
       </div>
 
+      {isVolunteer && <RiderSharing />}
       {isVolunteer && (
         <section className="grid gap-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
@@ -419,6 +421,11 @@ function Pickups() {
                       {String(p.status).replace("_", " ")}
                     </span>
                   </p>
+                  {!p.volunteer_id && (
+                    <p className="mt-2 text-sm">
+                      Waiting for an available nearby rider. Matching runs while riders are online.
+                    </p>
+                  )}
                   {p.volunteer_id && (isNgo || isVolunteer || isAdmin) && (
                     <div className="mt-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
                       <p className="font-semibold">{otherPartyLabel}</p>
@@ -477,7 +484,7 @@ function Pickups() {
                       })
                     }
                   >
-                    <MapPin className="mr-1 size-4" /> Delivery map
+                    <MapPin className="mr-1 size-4" /> Track delivery
                   </Button>
                 )}
                 {allowedNext && (

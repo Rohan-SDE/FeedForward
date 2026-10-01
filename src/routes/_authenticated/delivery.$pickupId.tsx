@@ -1,3 +1,4 @@
+import { RiderSharing, DeliveryTracking } from "@/components/RiderLive";
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -101,6 +102,7 @@ function DeliveryNavigation() {
   const details = useQuery({
     queryKey: ["deliveryDetails", pickupId],
     queryFn: () => getDeliveryDetails(pickupId),
+    refetchInterval: 10000,
   });
 
   const refreshDelivery = async () => {
@@ -232,6 +234,13 @@ function DeliveryNavigation() {
         </div>
       </section>
 
+      {!completed &&
+        !cancelled &&
+        (isVolunteer ? (
+          <RiderSharing pickupId={pickupId} />
+        ) : (
+          <DeliveryTracking pickupId={pickupId} />
+        ))}
       {isVolunteer && !completed && !cancelled && (
         <section className="surface-panel p-5">
           <h2 className="font-semibold">Delivery progress</h2>

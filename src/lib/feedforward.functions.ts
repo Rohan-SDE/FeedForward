@@ -145,3 +145,25 @@ export const listNearbyNgos = () =>
   api<{ requiresLocation: boolean; radiusKm?: number; ngos: NearbyNgo[]; searchLimited: boolean }>(
     "/api/ngos/nearby",
   );
+
+export const claimWithDelivery = ({ data }: ApiInput<Row>) =>
+  post<{ id: string }>("/api/claims/with-delivery", data);
+export const setRiderPresence = (data: {
+  available: boolean;
+  latitude: number;
+  longitude: number;
+}) => post<{ ok: boolean }>("/api/riders/presence", data);
+export type DeliveryLocation = {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  updated_at: string;
+};
+export const readDeliveryLocation = (id: string) =>
+  api<{ location: DeliveryLocation | null }>(`/api/pickups/${encodeURIComponent(id)}/location`);
+export const shareDeliveryLocation = (
+  id: string,
+  data: { latitude: number; longitude: number; accuracy: number },
+) => post<{ ok: boolean }>(`/api/pickups/${encodeURIComponent(id)}/location`, data);
+export const stopDeliveryLocation = (id: string) =>
+  post<{ ok: boolean }>(`/api/pickups/${encodeURIComponent(id)}/location/stop`, {});

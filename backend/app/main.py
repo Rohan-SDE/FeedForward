@@ -394,6 +394,54 @@ async def claim_listing(body: ClaimInput, user: CurrentUser = Depends(current_us
     return {"id": claim_id}
 
 
+class PresenceInput(BaseModel):
+    available: bool
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class DeliveryLocationInput(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy: float = Field(ge=0, le=10000)
+
+
+@app.post("/api/claims/with-delivery")
+async def claim_with_delivery(body: ClaimInput, user: CurrentUser = Depends(current_user)) -> dict[str, Any]:
+    await require_role(user, "ngo")
+    result = await gateway.rpc("claim_with_delivery", {"_listing_id": str(body.listing_id),
+        "_claimed_quantity": body.claimed_quantity, "_note": body.note}, token=user.token)
+    return {"id": result}
+
+
+@app.post("/api/riders/presence")
+async def rider_presence(body: PresenceInput, user: CurrentUser = Depends(current_user)) -> dict[str, bool]:
+    await require_role(user, "volunteer")
+    await gateway.rpc("set_rider_presence", {"_available": body.available, "_latitude": body.latitude,
+        "_longitude": body.longitude}, token=user.token)
+    return {"ok": True}
+
+
+@app.get("/api/pickups/{pickup_id}/location")
+async def read_location(pickup_id: UUID, user: CurrentUser = Depends(current_user)) -> dict[str, Any]:
+    result = await gateway.rpc("read_delivery_location", {"_pickup_id": str(pickup_id)}, token=user.token)
+    return {"location": result[0] if result else None}
+
+
+@app.post("/api/pickups/{pickup_id}/location")
+async def share_location(pickup_id: UUID, body: DeliveryLocationInput, user: CurrentUser = Depends(current_user)) -> dict[str, bool]:
+    await require_role(user, "volunteer")
+    await gateway.rpc("share_delivery_location", {"_pickup_id": str(pickup_id), "_latitude": body.latitude,
+        "_longitude": body.longitude, "_accuracy": body.accuracy}, token=user.token)
+    return {"ok": True}
+
+
+@app.post("/api/pickups/{pickup_id}/location/stop")
+async def stop_location(pickup_id: UUID, user: CurrentUser = Depends(current_user)) -> dict[str, bool]:
+    await gateway.rpc("stop_delivery_location", {"_pickup_id": str(pickup_id)}, token=user.token)
+    return {"ok": True}
+
+
 @app.get("/api/claims/mine")
 async def my_claims(user: CurrentUser = Depends(current_user)) -> list[dict[str, Any]]:
     return await gateway.rows(
@@ -416,6 +464,10 @@ async def schedule_pickup(body: ScheduleInput, user: CurrentUser = Depends(curre
     created = result[0] if isinstance(result, list) and result else None
     if not created:
         raise HTTPException(status_code=400, detail="Delivery request could not be created")
+    try:
+        await gateway.rpc("dispatch_my_request", {"_pickup_id": str(created["pickup_id"])}, token=user.token)
+    except HTTPException:
+        logging.getLogger("uvicorn.error").warning("dispatch_deferred")
     return {"ok": True, "pickupId": created["pickup_id"], "deliveryPin": created["delivery_pin"]}
 
 

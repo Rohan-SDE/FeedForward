@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { MapPin, Search, SlidersHorizontal } from "lucide-react";
-import { browseListings, claimListing } from "@/lib/feedforward.functions";
+import { browseListings, claimListing, claimWithDelivery } from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import type { Row } from "@/lib/rows";
 import {
@@ -53,11 +53,16 @@ export const Route = createFileRoute("/_authenticated/listings")({
       },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { listing?: string | undefined } => ({
+    listing: typeof search["listing"] === "string" ? search["listing"] : undefined,
+  }),
   component: Listings,
 });
 
 function Listings() {
   const qc = useQueryClient();
+  const { listing: selectedListing } = Route.useSearch();
+  const [autoDelivery, setAutoDelivery] = useState(true);
   const { data: me } = useMe();
   const canClaim = !!me?.roles.includes("ngo");
   const listings = useQuery({
@@ -66,9 +71,14 @@ function Listings() {
     refetchInterval: 10_000,
   });
   const claim = useMutation({
-    mutationFn: claimListing,
+    mutationFn: (input: Parameters<typeof claimListing>[0]) =>
+      autoDelivery ? claimWithDelivery(input) : claimListing(input),
     onSuccess: () => {
-      toast.success("Claimed — now schedule the pickup");
+      toast.success(
+        autoDelivery
+          ? "Claimed — delivery queued for an available rider. See Pickups for updates."
+          : "Claimed — now schedule the pickup",
+      );
       setActive(null);
       qc.invalidateQueries();
     },
@@ -83,6 +93,16 @@ function Listings() {
   const [active, setActive] = useState<Row | null>(null);
   const [claimQty, setClaimQty] = useState("");
   const [note, setNote] = useState("");
+  const openedListing = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!selectedListing || !listings.data || openedListing.current === selectedListing) return;
+    const item = listings.data.find((row) => row.id === selectedListing);
+    if (item) {
+      openedListing.current = selectedListing;
+      setActive(item);
+      setClaimQty(String(Number(item.quantity) - Number(item.claimed_quantity ?? 0)));
+    }
+  }, [selectedListing, listings.data]);
 
   const myLat = me?.profile?.latitude as number | null | undefined;
   const myLng = me?.profile?.longitude as number | null | undefined;
@@ -325,6 +345,15 @@ function Listings() {
               />
             </div>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={autoDelivery}
+              onChange={(event) => setAutoDelivery(event.target.checked)}
+            />
+            Request pickup now and automatically match an available rider. Leave unchecked to
+            schedule later.
+          </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setActive(null)}>
               Cancel

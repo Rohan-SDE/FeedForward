@@ -280,6 +280,11 @@ function NgoDashboard({
                   </div>
                   <div className="ml-auto">
                     <UrgencyBadge bestBefore={item.best_before} showTime />
+                    <Button asChild size="sm" className="mt-2">
+                      <Link to="/listings" search={{ listing: String(item.id) }}>
+                        View &amp; claim
+                      </Link>
+                    </Button>
                   </div>
                 </div>
               </div>
