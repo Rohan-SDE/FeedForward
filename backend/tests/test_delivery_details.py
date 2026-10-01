@@ -71,7 +71,7 @@ def test_assigned_volunteer_can_read_ngo_and_partner_details(volunteer_client, m
     assert response.json()["volunteer"]["full_name"] == "Delivery Partner"
 
 
-def test_details_are_hidden_until_a_partner_accepts(volunteer_client, monkeypatch):
+def test_unassigned_rider_cannot_read_details(volunteer_client, monkeypatch):
     pickup = assigned_pickup()
     pickup["volunteer_id"] = None
 
@@ -85,7 +85,7 @@ def test_details_are_hidden_until_a_partner_accepts(volunteer_client, monkeypatc
     monkeypatch.setattr(gateway, "rows", rows)
     response = volunteer_client.get(f"/api/pickups/{PICKUP_ID}/delivery-details")
 
-    assert response.status_code == 409
+    assert response.status_code == 403
 
 
 def test_unassigned_user_cannot_read_delivery_parties(monkeypatch):
@@ -153,3 +153,19 @@ def test_failed_atomic_transition_is_not_reported_as_success(volunteer_client, m
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Delivery status could not be updated"
+
+
+def test_claiming_ngo_can_track_before_assignment(volunteer_client, monkeypatch):
+    app.dependency_overrides[current_user] = lambda: CurrentUser(id=NGO_ID, token="ngo-token")
+    pickup = assigned_pickup()
+    pickup["volunteer_id"] = None
+    async def rows(table, **kwargs):
+        if table == "user_roles": return [{"role": "ngo"}]
+        if table == "pickups": return [pickup]
+        if table == "profiles": return [{"id": str(NGO_ID)}]
+        raise AssertionError(table)
+    monkeypatch.setattr(gateway, "rows", rows)
+    response = volunteer_client.get(f"/api/pickups/{PICKUP_ID}/delivery-details")
+    assert response.status_code == 200
+    assert response.json()["volunteer"] is None
+    assert response.json()["pickup"]["claims"]["food_listings"]["latitude"] == 22.7

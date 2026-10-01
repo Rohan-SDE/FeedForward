@@ -83,8 +83,8 @@ async function schedule(c) {
     )
   )[0];
 }
-await test("all 15 migrations apply", async () =>
-  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 15));
+await test("all 16 migrations apply", async () =>
+  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 16));
 await test("volunteer donation denied", async () => {
   await assert.rejects(
     asUser(
@@ -459,6 +459,57 @@ await test("donor cancellation and expired reservations release rider capacity",
   await assert.rejects(
     asUser("donor", "SELECT public.cancel_food_listing($1)", [l3]),
     /Collected food cannot be cancelled/,
+  );
+});
+await test("preparation and delay updates enforce ownership and terminal status", async () => {
+  const l = (
+    await db.query(
+      "INSERT INTO public.food_listings(donor_id,title,food_type,quantity,unit,prepared_at,best_before,pickup_address,latitude,longitude) VALUES($1,'Progress test','Rice',10,'servings',now(),now()+interval '4 hours','Test address',22,88) RETURNING id",
+      [ids.donor],
+    )
+  ).rows[0].id;
+  await assert.rejects(
+    asUser("ngo", "SELECT public.update_preparation($1,'ready')", [l]),
+    /Listing not found/,
+  );
+  for (const status of ["preparing", "delayed", "ready"]) {
+    await asUser("donor", "SELECT public.update_preparation($1,$2)", [l, status]);
+    assert.equal(
+      (await db.query("SELECT preparation_status FROM public.food_listings WHERE id=$1", [l]))
+        .rows[0].preparation_status,
+      status,
+    );
+  }
+  const c = await claim(l),
+    p = await schedule(c);
+  await db.exec(
+    "UPDATE public.pickups SET status='cancelled' WHERE volunteer_id IS NOT NULL AND status IN ('scheduled','en_route','picked_up','delivered')",
+  );
+  await asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p.pickup_id]);
+  await assert.rejects(
+    asUser("other", "SELECT public.report_delivery_delay($1,'Traffic')", [p.pickup_id]),
+    /Delivery not found/,
+  );
+  await asUser("volunteer", "SELECT public.report_delivery_delay($1,'Traffic')", [p.pickup_id]);
+  assert.equal(
+    (await db.query("SELECT delay_note FROM public.pickups WHERE id=$1", [p.pickup_id])).rows[0]
+      .delay_note,
+    "Traffic",
+  );
+  await asUser("volunteer", "SELECT public.report_delivery_delay($1,'')", [p.pickup_id]);
+  assert.equal(
+    (await db.query("SELECT delay_note FROM public.pickups WHERE id=$1", [p.pickup_id])).rows[0]
+      .delay_note,
+    null,
+  );
+  await asUser("donor", "SELECT public.cancel_food_listing($1)", [l]);
+  await assert.rejects(
+    asUser("donor", "SELECT public.update_preparation($1,'ready')", [l]),
+    /no longer active/,
+  );
+  await assert.rejects(
+    asUser("volunteer", "SELECT public.report_delivery_delay($1,'Traffic')", [p.pickup_id]),
+    /no longer active/,
   );
 });
 console.log(

@@ -20,7 +20,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMe } from "@/hooks/useMe";
-import { advancePickup, getDeliveryDetails, verifyDeliveryPin } from "@/lib/feedforward.functions";
+import {
+  advancePickup,
+  getDeliveryDetails,
+  verifyDeliveryPin,
+  reportDeliveryDelay,
+} from "@/lib/feedforward.functions";
 import type { Row } from "@/lib/rows";
 
 export const Route = createFileRoute("/_authenticated/delivery/$pickupId")({
@@ -86,7 +91,9 @@ function ContactCard({ title, profile }: { title: string; profile: Row | null })
           </p>
         </div>
       ) : (
-        <p className="mt-3 text-sm text-muted-foreground">Profile details unavailable.</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Waiting for assignment or profile details.
+        </p>
       )}
     </section>
   );
@@ -97,6 +104,7 @@ function DeliveryNavigation() {
   const queryClient = useQueryClient();
   const { data: me } = useMe();
   const [pin, setPin] = useState("");
+  const [delayNote, setDelayNote] = useState("");
   const isVolunteer = !!me?.roles.includes("volunteer");
 
   const details = useQuery({
@@ -123,6 +131,15 @@ function DeliveryNavigation() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const delay = useMutation({
+    mutationFn: reportDeliveryDelay,
+    onSuccess: () => {
+      toast.success("Delivery update shared");
+      setDelayNote("");
+      refreshDelivery();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const verifyPin = useMutation({
     mutationFn: verifyDeliveryPin,
     onSuccess: async () => {
@@ -194,17 +211,19 @@ function DeliveryNavigation() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            Assigned delivery
+            Order tracking
           </p>
           <h1 className="mt-1 text-3xl font-bold">
             {completed
               ? "Delivery completed"
               : cancelled
                 ? "Delivery cancelled"
-                : `Navigate to the ${activeDestination}`}
+                : isVolunteer
+                  ? `Navigate to the ${activeDestination}`
+                  : "Track your food order"}
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Collect the food first, deliver it to the NGO, then verify the NGO PIN.
+            Preparation, rider assignment and delivery updates refresh every 10 seconds.
           </p>
         </div>
         {activeNavigationUrl && !completed && !cancelled && (
@@ -233,6 +252,91 @@ function DeliveryNavigation() {
           </p>
         </div>
       </section>
+
+      <section className="surface-panel p-5" aria-live="polite">
+        <h2 className="font-semibold">Order progress</h2>
+        <ol className="mt-3 grid gap-3 text-sm">
+          <li>✓ Food claimed</li>
+          <li>
+            Restaurant:{" "}
+            {
+              (
+                {
+                  preparing: "Preparing order",
+                  ready: "Order ready for pickup",
+                  delayed: "Preparation delayed",
+                } as Record<string, string>
+              )[String(listing?.preparation_status ?? "preparing")]
+            }
+            {listing?.preparation_updated_at && (
+              <span className="ml-2 text-muted-foreground">
+                Updated {new Date(listing.preparation_updated_at).toLocaleTimeString()}
+              </span>
+            )}
+          </li>
+          <li>
+            {pickup.volunteer_id
+              ? `Rider assigned: ${volunteer?.full_name || "Delivery partner"}`
+              : "Finding an available nearby rider"}
+          </li>
+          <li className="font-medium">
+            {(
+              {
+                scheduled: pickup.volunteer_id
+                  ? "Rider assigned — awaiting departure"
+                  : "Waiting for rider assignment",
+                en_route: "Rider is on the way to the restaurant",
+                picked_up: "Food picked up — on the way to the NGO",
+                delivered: "At the NGO — awaiting confirmation",
+                completed: "Delivered and verified",
+                cancelled: "Order cancelled",
+              } as Record<string, string>
+            )[status] ?? status}
+          </li>
+          {!completed && !cancelled && pickup.delay_note && (
+            <li className="text-amber-700">Delivery delay: {pickup.delay_note}</li>
+          )}
+        </ol>
+      </section>
+
+      {center ? (
+        <NearbyMap markers={markers} center={center} />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Restaurant map unavailable: pickup coordinates have not been provided. Address:{" "}
+          {listing?.pickup_address}
+        </p>
+      )}
+
+      {isVolunteer && !completed && !cancelled && (
+        <section className="surface-panel grid gap-3 p-5">
+          <Label htmlFor="delay-note">Report a delivery delay</Label>
+          <Input
+            id="delay-note"
+            maxLength={240}
+            value={delayNote}
+            onChange={(e) => setDelayNote(e.target.value)}
+            placeholder="For example: waiting at restaurant or delayed by traffic"
+          />
+          <div className="flex gap-2">
+            <Button
+              disabled={delay.isPending || !delayNote.trim()}
+              onClick={() => delay.mutate({ id: pickupId, note: delayNote })}
+            >
+              Share delay
+            </Button>
+            {pickup.delay_note && (
+              <Button
+                variant="outline"
+                disabled={delay.isPending}
+                onClick={() => delay.mutate({ id: pickupId, note: "" })}
+              >
+                Delay resolved
+              </Button>
+            )}
+          </div>
+        </section>
+      )}
 
       {!completed &&
         !cancelled &&
@@ -308,14 +412,6 @@ function DeliveryNavigation() {
             </p>
           </div>
         </section>
-      )}
-
-      {center ? (
-        <NearbyMap markers={markers} center={center} />
-      ) : (
-        <div className="grid h-72 place-items-center rounded-xl border border-border bg-muted px-6 text-center text-sm text-muted-foreground">
-          Add valid donor and NGO coordinates to enable navigation.
-        </div>
       )}
 
       {!activeNavigationUrl && !completed && !cancelled && (

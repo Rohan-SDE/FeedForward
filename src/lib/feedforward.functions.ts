@@ -147,7 +147,7 @@ export const listNearbyNgos = () =>
   );
 
 export const claimWithDelivery = ({ data }: ApiInput<Row>) =>
-  post<{ id: string }>("/api/claims/with-delivery", data);
+  post<{ id: string; pickup_id: string | null }>("/api/claims/with-delivery", data);
 export const setRiderPresence = (data: {
   available: boolean;
   latitude: number;
@@ -167,3 +167,10 @@ export const shareDeliveryLocation = (
 ) => post<{ ok: boolean }>(`/api/pickups/${encodeURIComponent(id)}/location`, data);
 export const stopDeliveryLocation = (id: string) =>
   post<{ ok: boolean }>(`/api/pickups/${encodeURIComponent(id)}/location/stop`, {});
+
+export const updatePreparation = (data: { id: string; status: string }) =>
+  post<{ ok: boolean }>(`/api/listings/${encodeURIComponent(data.id)}/preparation`, {
+    status: data.status,
+  });
+export const reportDeliveryDelay = (data: { id: string; note: string }) =>
+  post<{ ok: boolean }>(`/api/pickups/${encodeURIComponent(data.id)}/delay`, { note: data.note });

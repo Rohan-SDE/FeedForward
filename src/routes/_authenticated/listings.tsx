@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { MapPin, Search, SlidersHorizontal } from "lucide-react";
-import { browseListings, claimListing, claimWithDelivery } from "@/lib/feedforward.functions";
+import { browseListings, claimWithDelivery } from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import type { Row } from "@/lib/rows";
 import {
@@ -61,8 +61,8 @@ export const Route = createFileRoute("/_authenticated/listings")({
 
 function Listings() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { listing: selectedListing } = Route.useSearch();
-  const [autoDelivery, setAutoDelivery] = useState(true);
   const { data: me } = useMe();
   const canClaim = !!me?.roles.includes("ngo");
   const listings = useQuery({
@@ -71,16 +71,14 @@ function Listings() {
     refetchInterval: 10_000,
   });
   const claim = useMutation({
-    mutationFn: (input: Parameters<typeof claimListing>[0]) =>
-      autoDelivery ? claimWithDelivery(input) : claimListing(input),
-    onSuccess: () => {
-      toast.success(
-        autoDelivery
-          ? "Claimed — delivery queued for an available rider. See Pickups for updates."
-          : "Claimed — now schedule the pickup",
-      );
+    mutationFn: claimWithDelivery,
+    onSuccess: (result) => {
+      toast.success("Claimed — opening order tracking");
       setActive(null);
       qc.invalidateQueries();
+      if ("pickup_id" in result && typeof result.pickup_id === "string") {
+        navigate({ to: "/delivery/$pickupId", params: { pickupId: result.pickup_id } });
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -345,15 +343,9 @@ function Listings() {
               />
             </div>
           </div>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={autoDelivery}
-              onChange={(event) => setAutoDelivery(event.target.checked)}
-            />
-            Request pickup now and automatically match an available rider. Leave unchecked to
-            schedule later.
-          </label>
+          <p className="text-sm text-muted-foreground">
+            Claiming requests an available rider and opens the order tracking map.
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setActive(null)}>
               Cancel

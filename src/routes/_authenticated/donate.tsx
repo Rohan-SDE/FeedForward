@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, PackagePlus, Trash2 } from "lucide-react";
 import {
   cancelListing,
+  updatePreparation,
   createListing,
   myListings,
   uploadFoodPhoto,
@@ -70,6 +71,14 @@ function Donate() {
       toast.success("Posted — nearby NGOs can now claim it");
       qc.invalidateQueries();
       navigate({ to: "/dashboard" });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const preparation = useMutation({
+    mutationFn: updatePreparation,
+    onSuccess: () => {
+      toast.success("Preparation updated");
+      qc.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -429,6 +438,21 @@ function Donate() {
               </div>
               <UrgencyBadge bestBefore={l.best_before} status={l.status} />
             </div>
+            {["posted", "claimed"].includes(l.status) && (
+              <label className="mt-3 block text-sm">
+                Preparation status
+                <select
+                  className="ml-2 rounded border bg-background p-2"
+                  value={l.preparation_status ?? "preparing"}
+                  disabled={preparation.isPending}
+                  onChange={(e) => preparation.mutate({ id: String(l.id), status: e.target.value })}
+                >
+                  <option value="preparing">Preparing order</option>
+                  <option value="ready">Ready for pickup</option>
+                  <option value="delayed">Preparation delayed</option>
+                </select>
+              </label>
+            )}
             {["posted", "claimed", "expired"].includes(l.status) && (
               <Button
                 size="sm"

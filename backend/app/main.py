@@ -420,7 +420,31 @@ async def claim_with_delivery(body: ClaimInput, user: CurrentUser = Depends(curr
     await require_role(user, "ngo")
     result = await gateway.rpc("claim_with_delivery", {"_listing_id": str(body.listing_id),
         "_claimed_quantity": body.claimed_quantity, "_note": body.note}, token=user.token)
-    return {"id": result}
+    pickups = await gateway.rows("pickups", token=user.token, select="id",
+        filters={"claim_id": eq(result)}, limit=1)
+    return {"id": result, "pickup_id": pickups[0]["id"] if pickups else None}
+
+
+class PreparationInput(BaseModel):
+    status: Literal["preparing", "ready", "delayed"]
+
+
+class DelayInput(BaseModel):
+    note: str = Field(default="", max_length=240)
+
+
+@app.post("/api/listings/{listing_id}/preparation")
+async def update_preparation(listing_id: UUID, body: PreparationInput, user: CurrentUser = Depends(current_user)):
+    await require_role(user, "donor")
+    await gateway.rpc("update_preparation", {"_listing_id": str(listing_id), "_status": body.status}, token=user.token)
+    return {"ok": True}
+
+
+@app.post("/api/pickups/{pickup_id}/delay")
+async def report_delay(pickup_id: UUID, body: DelayInput, user: CurrentUser = Depends(current_user)):
+    await require_role(user, "volunteer")
+    await gateway.rpc("report_delivery_delay", {"_pickup_id": str(pickup_id), "_note": body.note}, token=user.token)
+    return {"ok": True}
 
 
 @app.post("/api/riders/presence")
@@ -653,15 +677,10 @@ async def delivery_details(
     claim = pickup.get("claims") or {}
     ngo_id = str(claim.get("ngo_id") or "")
     volunteer_id = str(pickup.get("volunteer_id") or "")
-    if not volunteer_id:
-        raise HTTPException(
-            status_code=409,
-            detail="Delivery partner details are available after the request is accepted",
-        )
     if "admin" not in roles and str(user.id) not in {ngo_id, volunteer_id}:
         raise HTTPException(status_code=403, detail="You are not assigned to this delivery")
 
-    profile_ids = sorted({ngo_id, volunteer_id})
+    profile_ids = sorted({ngo_id, volunteer_id} - {""})
     profiles = await gateway.rows(
         "profiles",
         token=user.token,
