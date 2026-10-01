@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, CheckCircle2, MapPin, PackagePlus, Soup, Truck } from "lucide-react";
 import { useMe } from "@/hooks/useMe";
 import {
+  acceptDeliveryRequest,
   browseListings,
   getImpact,
   listNearbyDeliveryRequests,
@@ -332,15 +334,34 @@ function VolunteerDashboard({
   name,
   pickups,
   meals,
-  offerCount,
+  offers,
+  offersLoading,
+  offersError,
   requiresLocation,
 }: {
   name: string;
   pickups: Row[];
   meals: number;
-  offerCount: number;
+  offers: Row[];
+  offersLoading: boolean;
+  offersError: string | null;
   requiresLocation: boolean;
 }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const accept = useMutation({
+    mutationFn: acceptDeliveryRequest,
+    onSuccess: (result) => {
+      toast.success("Delivery accepted — opening navigation and location sharing");
+      void qc.invalidateQueries({ queryKey: ["pickups"] });
+      void qc.invalidateQueries({ queryKey: ["nearbyDeliveryRequests"] });
+      void navigate({ to: "/delivery/$pickupId", params: { pickupId: result.pickupId } });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+      void qc.invalidateQueries({ queryKey: ["nearbyDeliveryRequests"] });
+    },
+  });
   const active = pickups.filter((item) =>
     ["scheduled", "en_route", "picked_up", "delivered"].includes(String(item.status)),
   );
@@ -362,7 +383,7 @@ function VolunteerDashboard({
         }
       />
       <div className="grid gap-4 sm:grid-cols-4">
-        <Stat label="Nearby requests" value={String(offerCount)} />
+        <Stat label="Nearby requests" value={String(offers.length)} />
         <Stat label="Active assignments" value={String(active.length)} />
         <Stat label="Completed deliveries" value={String(completed.length)} />
         <Stat label="Community meals saved" value={formatNumber(meals)} />
@@ -375,6 +396,56 @@ function VolunteerDashboard({
           </Button>
         </div>
       )}
+      <section className="grid gap-4">
+        <h2 className="text-lg font-semibold">Nearby delivery requests</h2>
+        {offersLoading && <p className="text-sm text-muted-foreground">Loading nearby requests…</p>}
+        {offersError && (
+          <p role="alert" className="text-sm text-destructive">
+            {offersError}
+          </p>
+        )}
+        {!offersLoading && !offersError && !requiresLocation && offers.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No nearby requests right now. Updates refresh automatically.
+          </p>
+        )}
+        {active.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Complete your active delivery before accepting another.
+          </p>
+        )}
+        {offers.map((request) => (
+          <article
+            key={request.id}
+            className="surface-panel flex flex-wrap items-center justify-between gap-4 p-5"
+          >
+            <div className="flex items-center gap-3">
+              <FoodPhoto
+                src={request.photo_url}
+                alt={`${request.title} food`}
+                className="size-20 shrink-0"
+              />
+              <div>
+                <h3 className="font-medium">{request.title}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {request.quantity} {request.unit} · {request.city} · {request.distance_km} km away
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Requested for {new Date(request.scheduled_time).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <Button
+              disabled={accept.isPending || active.length > 0}
+              onClick={() => accept.mutate({ data: { pickup_id: String(request.id) } })}
+            >
+              {accept.isPending && accept.variables?.data.pickup_id === request.id
+                ? "Accepting…"
+                : "Accept & share location"}
+            </Button>
+          </article>
+        ))}
+      </section>
       <section className="surface-panel p-6">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Truck className="size-4" /> Next assignment
@@ -394,7 +465,9 @@ function VolunteerDashboard({
                 </p>
               </div>
               <Button asChild size="sm" variant="outline">
-                <Link to="/pickups">Update delivery</Link>
+                <Link to="/delivery/$pickupId" params={{ pickupId: String(next.id) }}>
+                  Open navigation
+                </Link>
               </Button>
             </div>
           </div>
@@ -434,6 +507,7 @@ function Dashboard() {
   const pickups = useQuery({
     queryKey: ["pickups"],
     queryFn: listPickups,
+    refetchInterval: 10_000,
     enabled: !!me?.roles.length,
   });
   const deliveryOffers = useQuery({
@@ -479,7 +553,9 @@ function Dashboard() {
         name={firstName}
         pickups={pickupRows}
         meals={meals}
-        offerCount={deliveryOffers.data?.requests.length ?? 0}
+        offers={deliveryOffers.data?.requests ?? []}
+        offersLoading={deliveryOffers.isLoading}
+        offersError={deliveryOffers.error?.message ?? null}
         requiresLocation={deliveryOffers.data?.requiresLocation ?? false}
       />
     );
