@@ -133,3 +133,15 @@ export const uploadFoodPhoto = (file: File) =>
     body: file,
     signal: AbortSignal.timeout(30_000),
   });
+
+export type NearbyNgo = {
+  id: string;
+  name: string;
+  city: string | null;
+  verified: boolean;
+  distanceKm: number;
+};
+export const listNearbyNgos = () =>
+  api<{ requiresLocation: boolean; radiusKm?: number; ngos: NearbyNgo[]; searchLimited: boolean }>(
+    "/api/ngos/nearby",
+  );

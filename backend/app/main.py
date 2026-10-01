@@ -232,6 +232,41 @@ async def get_me(user: CurrentUser = Depends(current_user)) -> dict[str, Any]:
     return {"userId": str(user.id), "profile": profiles[0] if profiles else None, "roles": await roles_for(user)}
 
 
+@app.get("/api/ngos/nearby")
+async def nearby_ngos(user: CurrentUser = Depends(current_user)) -> dict[str, Any]:
+    await require_role(user, "donor", "admin")
+    profiles = await gateway.rows(
+        "profiles", token=user.token, select="latitude,longitude,service_radius_km",
+        filters={"id": eq(user.id)}, limit=1,
+    )
+    profile = profiles[0] if profiles else {}
+    if profile.get("latitude") is None or profile.get("longitude") is None:
+        return {"requiresLocation": True, "ngos": [], "searchLimited": False}
+    radius = min(200, max(1, float(profile.get("service_radius_km") or 10)))
+    roles = await gateway.rows("user_roles", admin=True, select="user_id",
+                               filters={"role": "eq.ngo"}, order="user_id", limit=1000)
+    ids = sorted({str(row["user_id"]) for row in roles})
+    matches = []
+    for start in range(0, len(ids), 100):
+        candidates = await gateway.rows(
+            "profiles", admin=True,
+            select="id,org_name,city,verified,latitude,longitude",
+            filters={"id": f"in.({','.join(ids[start:start + 100])})"},
+        )
+        for candidate in candidates:
+            if candidate.get("latitude") is None or candidate.get("longitude") is None:
+                continue
+            distance = haversine(float(profile["latitude"]), float(profile["longitude"]),
+                                 float(candidate["latitude"]), float(candidate["longitude"]))
+            if distance <= radius:
+                matches.append({"id": candidate["id"], "name": candidate.get("org_name") or "NGO",
+                                "city": candidate.get("city"), "verified": bool(candidate.get("verified")),
+                                "distanceKm": distance})
+    matches.sort(key=lambda item: (item["distanceKm"], str(item["id"])))
+    return {"requiresLocation": False, "radiusKm": radius, "ngos": matches[:50],
+            "searchLimited": len(roles) >= 1000 or len(matches) > 50}
+
+
 @app.patch("/api/profile")
 async def save_profile(body: ProfilePatch, user: CurrentUser = Depends(current_user)) -> dict[str, bool]:
     # Omitted fields must preserve their stored values. Explicit null is
