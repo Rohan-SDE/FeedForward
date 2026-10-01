@@ -163,7 +163,7 @@ async def security_headers(request: Request, call_next):
     except Exception:
         logging.getLogger("feedforward").error("request_failed request_id=%s", request_id)
         response = JSONResponse(status_code=500, content={"detail": "An unexpected error occurred", "requestId": request_id})
-    logging.getLogger("uvicorn.access").info(
+    logging.getLogger("uvicorn.error").info(
         "request_id=%s method=%s status=%s duration_ms=%.1f",
         request_id, request.method, response.status_code, (time.monotonic() - started) * 1000,
     )
@@ -217,6 +217,11 @@ async def readiness() -> dict[str, str]:
     try:
         await gateway.rows("food_photos", admin=True, select="id", limit=1)
     except Exception as error:
+        logging.getLogger("uvicorn.error").warning(
+            "readiness_failed dependency=supabase error_type=%s gateway_status=%s",
+            type(error).__name__,
+            error.status_code if isinstance(error, HTTPException) else "unknown",
+        )
         raise HTTPException(status_code=503, detail="Database is unavailable") from error
     return {"status": "ready", "service": settings.app_name}
 
