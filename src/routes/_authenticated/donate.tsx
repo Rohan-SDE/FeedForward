@@ -429,7 +429,7 @@ function Donate() {
               </div>
               <UrgencyBadge bestBefore={l.best_before} status={l.status} />
             </div>
-            {["posted", "claimed"].includes(l.status) && (
+            {["posted", "claimed", "expired"].includes(l.status) && (
               <Button
                 size="sm"
                 variant="ghost"

@@ -83,8 +83,8 @@ async function schedule(c) {
     )
   )[0];
 }
-await test("all 14 migrations apply", async () =>
-  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 14));
+await test("all 15 migrations apply", async () =>
+  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 15));
 await test("volunteer donation denied", async () => {
   await assert.rejects(
     asUser(
@@ -398,6 +398,67 @@ await test("automatic dispatch respects availability, capacity and tracking priv
     (await db.query("SELECT volunteer_id FROM public.pickups WHERE id=$1", [p2.id])).rows[0]
       .volunteer_id,
     ids.other,
+  );
+});
+await test("donor cancellation and expired reservations release rider capacity", async () => {
+  await db.exec(
+    "UPDATE public.pickups SET status='cancelled' WHERE status IN ('scheduled','en_route','picked_up','delivered')",
+  );
+  async function fresh() {
+    return (
+      await db.query(
+        "INSERT INTO public.food_listings(donor_id,title,food_type,quantity,unit,prepared_at,best_before,pickup_address,latitude,longitude) VALUES($1,'Expiry regression','Rice',10,'servings',now()-interval '2 hours',now()+interval '4 hours','Test address',22,88) RETURNING id",
+        [ids.donor],
+      )
+    ).rows[0].id;
+  }
+  const l = await fresh(),
+    c = await claim(l),
+    p = await schedule(c);
+  await asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p.pickup_id]);
+  await asUser("volunteer", "SELECT public.advance_delivery_pickup($1,'en_route')", [p.pickup_id]);
+  await assert.rejects(
+    asUser("ngo", "SELECT public.cancel_food_listing($1)", [l]),
+    /Listing not found/,
+  );
+  await asUser("donor", "SELECT public.cancel_food_listing($1)", [l]);
+  await asUser("donor", "SELECT public.cancel_food_listing($1)", [l]);
+  assert.equal(
+    (await db.query("SELECT status FROM public.pickups WHERE id=$1", [p.pickup_id])).rows[0].status,
+    "cancelled",
+  );
+  assert.equal(
+    Number(
+      (await db.query("SELECT claimed_quantity FROM public.food_listings WHERE id=$1", [l])).rows[0]
+        .claimed_quantity,
+    ),
+    0,
+  );
+  const l2 = await fresh(),
+    c2 = await claim(l2),
+    p2 = await schedule(c2);
+  await asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p2.pickup_id]);
+  await db.query(
+    "UPDATE public.food_listings SET status='expired',best_before=now()-interval '1 hour' WHERE id=$1",
+    [l2],
+  );
+  await db.exec("SELECT public.expire_food_batch(100); SELECT public.expire_food_batch(100)");
+  assert.equal(
+    (await db.query("SELECT status FROM public.pickups WHERE id=$1", [p2.pickup_id])).rows[0]
+      .status,
+    "cancelled",
+  );
+  const l3 = await fresh(),
+    c3 = await claim(l3),
+    p3 = await schedule(c3);
+  await asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p3.pickup_id]);
+  await asUser("volunteer", "SELECT public.advance_delivery_pickup($1,'en_route')", [p3.pickup_id]);
+  await asUser("volunteer", "SELECT public.advance_delivery_pickup($1,'picked_up')", [
+    p3.pickup_id,
+  ]);
+  await assert.rejects(
+    asUser("donor", "SELECT public.cancel_food_listing($1)", [l3]),
+    /Collected food cannot be cancelled/,
   );
 });
 console.log(

@@ -3,7 +3,7 @@ import math
 import logging
 import time
 from uuid import uuid4
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import AwareDatetime, BaseModel, Field, HttpUrl, model_validator
 
+from .maintenance import run_loop
 from .request_limits import BodyLimitMiddleware
 from .photos import MAX_UPLOAD_BYTES, normalize_photo
 from .config import Settings, get_settings
@@ -131,8 +132,16 @@ photo_decode_slots = asyncio.Semaphore(2)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    yield
-    await gateway.close()
+    # Also run on single-service hosts without a separate maintenance worker.
+    # The database uses row locks + SKIP LOCKED for multiple API workers.
+    maintenance_task = asyncio.create_task(run_loop(gateway))
+    try:
+        yield
+    finally:
+        maintenance_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await maintenance_task
+        await gateway.close()
 
 
 production = settings.environment.lower() == "production"

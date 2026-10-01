@@ -1,4 +1,4 @@
-"""Run with python -m app.maintenance; scheduled separately from API workers."""
+"""Run with python -m app.maintenance; also hosted by the API lifespan."""
 import asyncio
 import logging
 import time
@@ -21,18 +21,21 @@ async def run_once(gateway: SupabaseGateway) -> int:
     return total
 
 
+async def run_loop(gateway: SupabaseGateway) -> None:
+    while True:
+        try:
+            expired = await run_once(gateway)
+            HEARTBEAT.write_text(str(time.time()))
+            logging.getLogger("uvicorn.error").info('maintenance_ok expired=%s', expired)
+        except Exception:
+            logging.getLogger("uvicorn.error").error('maintenance_failed; retrying in 60 seconds')
+        await asyncio.sleep(60)
+
+
 async def main() -> None:
     gateway = SupabaseGateway(get_settings())
     try:
-        while True:
-            try:
-                expired = await run_once(gateway)
-                HEARTBEAT.write_text(str(time.time()))
-                logging.info('maintenance_ok expired=%s', expired)
-            except Exception:
-                # Do not log upstream bodies, keys, or profile data.
-                logging.error('maintenance_failed; retrying in 60 seconds')
-            await asyncio.sleep(60)
+        await run_loop(gateway)
     finally:
         await gateway.close()
 
