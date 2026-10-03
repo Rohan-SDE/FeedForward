@@ -59,7 +59,7 @@ export default function FeedbackSection({ pickups, roles }: { pickups: Row[]; ro
   const submit = useMutation({
     mutationFn: submitDeliveryFeedback,
     onSuccess: () => {
-      toast.success("Feedback submitted privately to the admin");
+      toast.success("Feedback submitted");
       qc.invalidateQueries({ queryKey: ["myFeedbackStatus"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -117,7 +117,8 @@ export default function FeedbackSection({ pickups, roles }: { pickups: Row[]; ro
           <MessageSquare className="size-4" /> Delivery feedback
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Your rating and comment are private and can be read only by platform admins.
+          NGO food reviews are shared with the food donor and administrators. All other feedback is
+          visible only to administrators.
         </p>
       </div>
 
@@ -146,9 +147,7 @@ export default function FeedbackSection({ pickups, roles }: { pickups: Row[]; ro
                   return (
                     <div key={key} className="rounded-xl border border-border bg-muted p-4">
                       <p className="font-medium">{LABELS[category]}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Feedback submitted privately to the admin.
-                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">Feedback submitted.</p>
                     </div>
                   );
                 }
@@ -196,7 +195,7 @@ export default function FeedbackSection({ pickups, roles }: { pickups: Row[]; ro
                         })
                       }
                     >
-                      Submit private feedback
+                      Submit feedback
                     </Button>
                   </div>
                 );

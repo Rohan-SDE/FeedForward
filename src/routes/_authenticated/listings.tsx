@@ -66,7 +66,7 @@ function Listings() {
   const { data: me } = useMe();
   const canClaim = !!me?.roles.includes("ngo");
   const listings = useQuery({
-    queryKey: ["browse"],
+    queryKey: ["browse", me?.profile?.latitude, me?.profile?.longitude],
     queryFn: browseListings,
     refetchInterval: 10_000,
   });
@@ -112,16 +112,18 @@ function Listings() {
         ...l,
         remaining: Number(l.quantity) - Number(l.claimed_quantity ?? 0),
         km:
-          myLat != null && myLng != null && l.latitude != null && l.longitude != null
-            ? distanceKm(myLat, myLng, Number(l.latitude), Number(l.longitude))
-            : null,
+          l.distance_km != null
+            ? Number(l.distance_km)
+            : myLat != null && myLng != null && l.latitude != null && l.longitude != null
+              ? distanceKm(myLat, myLng, Number(l.latitude), Number(l.longitude))
+              : null,
       }))
       .filter((l) => {
         if (hideExpired && urgencyOf(l.best_before) === "expired") return false;
         if (l.remaining <= 0) return false;
         if (diet !== "any" && l.diet !== diet) return false;
         if (storage !== "any" && l.storage !== storage) return false;
-        if (maxKm && l.km != null && l.km > Number(maxKm)) return false;
+        if (maxKm && (l.km == null || l.km > Number(maxKm))) return false;
         const needle = q.trim().toLowerCase();
         if (needle && !`${l.title} ${l.food_type} ${l.city ?? ""}`.toLowerCase().includes(needle))
           return false;
@@ -160,6 +162,18 @@ function Listings() {
         </p>
       </div>
 
+      {listings.isLoading && <p role="status">Loading available food from approved donors…</p>}
+      {listings.error && (
+        <div role="alert" className="surface-panel p-4">
+          <p>{listings.error.message}</p>
+          <Button onClick={() => void listings.refetch()}>Retry food search</Button>
+        </div>
+      )}
+      {maxKm && (myLat == null || myLng == null) && (
+        <p role="alert">
+          Save your location in Profile before filtering by distance, or clear the distance filter.
+        </p>
+      )}
       <div className="surface-panel grid gap-4 p-5 md:grid-cols-5">
         <div className="md:col-span-2">
           <Label htmlFor="q" className="text-xs uppercase tracking-wide text-muted-foreground">

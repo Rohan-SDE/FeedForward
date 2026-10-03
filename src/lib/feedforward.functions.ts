@@ -15,7 +15,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     try {
       response = await fetch(`${API_URL}${path}`, {
         ...options,
-        signal: options.signal ?? AbortSignal.timeout(15_000),
+        signal: options.signal ?? AbortSignal.timeout(method === "GET" ? 45_000 : 15_000),
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -174,3 +174,16 @@ export const updatePreparation = (data: { id: string; status: string }) =>
   });
 export const reportDeliveryDelay = (data: { id: string; note: string }) =>
   post<{ ok: boolean }>(`/api/pickups/${encodeURIComponent(data.id)}/delay`, { note: data.note });
+
+export const listVerification = () => api<Row[]>("/api/verification");
+export const requestVerification = (details: string) => post("/api/verification", { details });
+export const reviewVerification = (data: { user_id: string; approved: boolean; note: string }) =>
+  post("/api/admin/verification", data);
+export const receivedFeedback = () => api<Row[]>("/api/feedback/received");
+export const listSupport = () => api<Row[]>("/api/support");
+export const openSupport = (data: { subject: string; body: string }) => post("/api/support", data);
+export const replySupport = (data: { id: string; body: string; status?: string }) =>
+  post(`/api/support/${encodeURIComponent(data.id)}/reply`, {
+    body: data.body,
+    status: data.status,
+  });

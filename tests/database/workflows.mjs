@@ -83,8 +83,8 @@ async function schedule(c) {
     )
   )[0];
 }
-await test("all 16 migrations apply", async () =>
-  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 16));
+await test("all 17 migrations apply", async () =>
+  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 17));
 await test("volunteer donation denied", async () => {
   await assert.rejects(
     asUser(
@@ -92,7 +92,7 @@ await test("volunteer donation denied", async () => {
       `INSERT INTO public.food_listings(donor_id,title,food_type,quantity,best_before,pickup_address) VALUES($1,'Food','rice',10,now()+interval '1 hour','address')`,
       [ids.volunteer],
     ),
-    /row-level security/,
+    /row-level security|approval required/,
   );
 });
 await test("self verification denied", async () => {
@@ -104,6 +104,10 @@ await test("self verification denied", async () => {
 await test("admin verification allowed", async () => {
   await asUser("admin", "UPDATE public.profiles SET verified=true WHERE id=$1", [ids.ngo]);
 });
+await db.query("UPDATE public.profiles SET verified=true WHERE id IN ($1,$2)", [
+  ids.donor,
+  ids.ngo2,
+]);
 await test("direct workflow mutation denied", async () => {
   for (const table of ["claims", "pickups", "impact_records"])
     await assert.rejects(asUser("ngo", `DELETE FROM public.${table}`), /permission denied/);
@@ -255,6 +259,7 @@ await test("direct listing quota cannot be bypassed through REST", async () => {
     ids.quota,
     JSON.stringify({ role: "donor" }),
   ]);
+  await db.query("UPDATE public.profiles SET verified=true WHERE id=$1", [ids.quota]);
   const sql =
     "INSERT INTO public.food_listings(donor_id,title,food_type,quantity,best_before,pickup_address) VALUES($1,'Food','Rice',1,now()+interval '1 hour','Test address')";
   for (let i = 0; i < 60; i++) await asUser("quota", sql, [ids.quota]);
@@ -511,6 +516,110 @@ await test("preparation and delay updates enforce ownership and terminal status"
     asUser("volunteer", "SELECT public.report_delivery_delay($1,'Traffic')", [p.pickup_id]),
     /no longer active/,
   );
+});
+await test("manual approval cannot be bypassed and reviewer decisions are recorded", async () => {
+  await db.query("UPDATE public.profiles SET verified=false WHERE id=$1", [ids.donor]);
+  await assert.rejects(listing(), /approval required/);
+  await asUser("donor", "SELECT public.request_verification($1)", [
+    "Community kitchen; administrator can contact our organisation to verify.",
+  ]);
+  await assert.rejects(
+    asUser("donor", "SELECT public.review_verification($1,true,'Approved')", [ids.donor]),
+    /Admins only/,
+  );
+  assert.equal((await asUser("ngo", "SELECT * FROM public.verification_requests")).length, 0);
+  await asUser("admin", "SELECT public.review_verification($1,true,'Contact verified manually')", [
+    ids.donor,
+  ]);
+  assert.equal(
+    (await asUser("donor", "SELECT status FROM public.verification_requests"))[0].status,
+    "approved",
+  );
+  await db.query("UPDATE public.profiles SET verified=false WHERE id=$1", [ids.ngo]);
+  const l = (
+    await db.query(
+      "INSERT INTO public.food_listings(donor_id,title,food_type,quantity,best_before,pickup_address) VALUES($1,'Approval test','Rice',10,now()+interval '2 hours','Test address') RETURNING id",
+      [ids.donor],
+    )
+  ).rows[0].id;
+  await assert.rejects(claim(l), /approval required/);
+  await db.query("UPDATE public.profiles SET verified=true WHERE id=$1", [ids.ngo]);
+});
+await test("support tickets isolate users and only admins set status", async () => {
+  const t = (
+    await asUser(
+      "ngo",
+      "SELECT public.open_support_ticket('Pickup problem','Please help with my order') AS id",
+    )
+  )[0].id;
+  assert.equal((await asUser("ngo2", "SELECT * FROM public.support_tickets")).length, 0);
+  assert.equal((await asUser("ngo2", "SELECT * FROM public.support_messages")).length, 0);
+  await assert.rejects(
+    asUser("ngo2", "SELECT public.reply_support_ticket($1,'Attempt to read',NULL)", [t]),
+    /Ticket not found/,
+  );
+  await assert.rejects(
+    asUser("ngo", "SELECT public.reply_support_ticket($1,'Set resolved','resolved')", [t]),
+    /Only admins/,
+  );
+  await asUser(
+    "admin",
+    "SELECT public.reply_support_ticket($1,'We are investigating','in_progress')",
+    [t],
+  );
+  assert.equal(
+    (await asUser("ngo", "SELECT status FROM public.support_tickets"))[0].status,
+    "in_progress",
+  );
+  assert.equal((await asUser("ngo", "SELECT * FROM public.support_messages")).length, 2);
+});
+await test("NGO can cancel an assigned en-route order but not collected food", async () => {
+  await db.exec(
+    "UPDATE public.pickups SET status='cancelled' WHERE status IN ('scheduled','en_route','picked_up','delivered')",
+  );
+  const l = (
+    await db.query(
+      "INSERT INTO public.food_listings(donor_id,title,food_type,quantity,best_before,pickup_address,latitude,longitude) VALUES($1,'Cancel test','Rice',10,now()+interval '2 hours','Test address',22,88) RETURNING id",
+      [ids.donor],
+    )
+  ).rows[0].id;
+  const c = await claim(l),
+    p = await schedule(c);
+  await asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p.pickup_id]);
+  await asUser("volunteer", "SELECT public.advance_delivery_pickup($1,'en_route')", [p.pickup_id]);
+  await asUser("ngo", "SELECT public.advance_delivery_pickup($1,'cancelled')", [p.pickup_id]);
+  assert.equal(
+    Number(
+      (await db.query("SELECT claimed_quantity FROM public.food_listings WHERE id=$1", [l])).rows[0]
+        .claimed_quantity,
+    ),
+    0,
+  );
+  const c2 = await claim(l),
+    p2 = await schedule(c2);
+  await asUser("volunteer", "SELECT public.accept_delivery_request($1)", [p2.pickup_id]);
+  await asUser("volunteer", "SELECT public.advance_delivery_pickup($1,'en_route')", [p2.pickup_id]);
+  await asUser("volunteer", "SELECT public.advance_delivery_pickup($1,'picked_up')", [
+    p2.pickup_id,
+  ]);
+  await assert.rejects(
+    asUser("ngo", "SELECT public.advance_delivery_pickup($1,'cancelled')", [p2.pickup_id]),
+    /administrator/,
+  );
+});
+await test("only NGO food reviews are visible to the matching donor", async () => {
+  const p = (await db.query("SELECT id FROM public.pickups LIMIT 1")).rows[0].id;
+  await db.query("DELETE FROM public.delivery_feedback WHERE pickup_id=$1", [p]);
+  await db.query(
+    "INSERT INTO public.delivery_feedback(pickup_id,reviewer_id,reviewer_role,subject_id,subject_role,category,rating,comment) VALUES($1,$2,'ngo',$3,'donor','food',5,'Good food'),($1,$4,'volunteer',$3,'donor','restaurant',3,'Admin only'),($1,$3,'donor',$4,'volunteer','delivery_partner',4,'Admin only')",
+    [p, ids.ngo, ids.donor, ids.volunteer],
+  );
+  const donorRows = await asUser("donor", "SELECT * FROM public.delivery_feedback");
+  assert.equal(donorRows.length, 1);
+  assert.equal(donorRows[0].comment, "Good food");
+  assert.equal((await asUser("volunteer", "SELECT * FROM public.delivery_feedback")).length, 0);
+  assert.equal((await asUser("ngo2", "SELECT * FROM public.delivery_feedback")).length, 0);
+  assert.ok((await asUser("admin", "SELECT * FROM public.delivery_feedback")).length >= 3);
 });
 console.log(
   `${passed} database checks passed (${realDatabase ? "PostgreSQL + concurrent claim test" : "single-session PGlite; no concurrency/load test"})`,

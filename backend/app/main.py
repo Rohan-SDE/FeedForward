@@ -366,6 +366,9 @@ async def cancel_listing(body: IdInput, user: CurrentUser = Depends(current_user
 
 @app.get("/api/listings")
 async def browse_listings(user: CurrentUser = Depends(current_user)) -> list[dict[str, Any]]:
+    await require_role(user, "ngo", "admin")
+    profiles = await gateway.rows("profiles", token=user.token, select="latitude,longitude", filters={"id": eq(user.id)}, limit=1)
+    profile = profiles[0] if profiles else {}
     rows = await gateway.rows(
         "food_listings", admin=True,
         select="id,donor_id,title,food_type,description,quantity,unit,claimed_quantity,diet,allergens,storage,photo_url,prepared_at,best_before,city,status,created_at,latitude,longitude",
@@ -378,11 +381,14 @@ async def browse_listings(user: CurrentUser = Depends(current_user)) -> list[dic
     ) if donor_ids else []
     by_id = {item["id"]: item for item in donors}
     for row in rows:
+        row["distance_km"] = None
+        if all(profile.get(k) is not None and row.get(k) is not None for k in ("latitude", "longitude")):
+            row["distance_km"] = round(haversine(float(profile["latitude"]), float(profile["longitude"]), float(row["latitude"]), float(row["longitude"])), 2)
         for key in ("latitude", "longitude"):
             row[key] = round(float(row[key]), 2) if row.get(key) is not None else None
         row["area"] = row.get("city") or "Approximate area shown until claimed"
         row["donor"] = by_id.get(row["donor_id"])
-    return rows
+    return [row for row in rows if (row.get("donor") or {}).get("verified") and float(row["quantity"]) > float(row.get("claimed_quantity") or 0)]
 
 
 @app.get("/api/listings/mine")
@@ -782,3 +788,68 @@ async def optimize_route(body: RouteInput, user: CurrentUser = Depends(current_u
         current = closest
         remaining.remove(closest)
     return {"order": order, "totalKm": round(total_km, 1), "totalMinutes": round(total_km / 25 * 60)}
+
+
+class VerificationRequest(BaseModel):
+    details: str = Field(min_length=20, max_length=3000)
+
+
+class VerificationReview(BaseModel):
+    user_id: UUID
+    approved: bool
+    note: str = Field(min_length=3, max_length=1000)
+
+
+class TicketInput(BaseModel):
+    subject: str = Field(min_length=3, max_length=140)
+    body: str = Field(min_length=3, max_length=3000)
+
+
+class TicketReply(BaseModel):
+    body: str = Field(min_length=3, max_length=3000)
+    status: Literal['open', 'in_progress', 'resolved'] | None = None
+
+
+@app.get('/api/verification')
+async def verification(user: CurrentUser = Depends(current_user)):
+    return await gateway.rows('verification_requests', token=user.token, order='updated_at.desc')
+
+
+@app.post('/api/verification')
+async def request_verification(body: VerificationRequest, user: CurrentUser = Depends(current_user)):
+    await gateway.rpc('request_verification', {'_details': body.details}, token=user.token)
+    return {'ok': True}
+
+
+@app.post('/api/admin/verification')
+async def review_verification(body: VerificationReview, user: CurrentUser = Depends(current_user)):
+    await require_role(user, 'admin')
+    await gateway.rpc('review_verification', {'_user_id': str(body.user_id), '_approved': body.approved, '_note': body.note}, token=user.token)
+    return {'ok': True}
+
+
+@app.get('/api/feedback/received')
+async def received_feedback(user: CurrentUser = Depends(current_user)):
+    await require_role(user, 'donor')
+    return await gateway.rows('delivery_feedback', token=user.token,
+        select='id,pickup_id,rating,comment,created_at,category',
+        filters={'subject_id': eq(user.id), 'reviewer_role': 'eq.ngo', 'category': 'eq.food'}, order='created_at.desc')
+
+
+@app.get('/api/support')
+async def support_tickets(user: CurrentUser = Depends(current_user)):
+    return await gateway.rows('support_tickets', token=user.token, select='*,support_messages(*)', order='updated_at.desc', limit=200)
+
+
+@app.post('/api/support')
+async def open_ticket(body: TicketInput, user: CurrentUser = Depends(current_user)):
+    result = await gateway.rpc('open_support_ticket', {'_subject': body.subject, '_body': body.body}, token=user.token)
+    return {'id': result}
+
+
+@app.post('/api/support/{ticket_id}/reply')
+async def reply_ticket(ticket_id: UUID, body: TicketReply, user: CurrentUser = Depends(current_user)):
+    if body.status is not None:
+        await require_role(user, 'admin')
+    await gateway.rpc('reply_support_ticket', {'_ticket_id': str(ticket_id), '_body': body.body, '_status': body.status}, token=user.token)
+    return {'ok': True}

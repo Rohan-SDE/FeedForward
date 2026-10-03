@@ -236,6 +236,26 @@ function DeliveryNavigation() {
         )}
       </div>
 
+      {me?.roles.includes("ngo") &&
+        ["scheduled", "en_route"].includes(status) &&
+        !pickup.actual_pickup_time && (
+          <section className="surface-panel p-4">
+            <p className="mb-2 text-sm">
+              You can cancel until the rider physically collects the food, including after
+              assignment.
+            </p>
+            <Button
+              variant="destructive"
+              disabled={advance.isPending}
+              onClick={() => {
+                if (window.confirm("Cancel this order and notify the assigned rider?"))
+                  advance.mutate({ data: { id: pickupId, status: "cancelled" } });
+              }}
+            >
+              Cancel order
+            </Button>
+          </section>
+        )}
       <section className="surface-panel flex items-center gap-4 p-5">
         <FoodPhoto
           src={listing?.photo_url}

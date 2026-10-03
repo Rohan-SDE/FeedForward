@@ -165,6 +165,17 @@ export function DeliveryTracking({ pickupId }: { pickupId: string }) {
             {new Date(point.updated_at).toLocaleTimeString()} · accuracy ±
             {Math.round(point.accuracy)} m
           </p>
+          <a
+            className="mb-3 inline-block text-primary underline"
+            href={`https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open latest rider position in Google Maps
+          </a>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Google Maps shows this reported position. Return here for updated tracking.
+          </p>
           <NearbyMap
             center={{ lat: point.latitude, lng: point.longitude }}
             markers={[

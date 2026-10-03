@@ -498,7 +498,10 @@ function Pickups() {
                     Mark {allowedNext.replace("_", " ")}
                   </Button>
                 )}
-                {(isNgo || isAdmin) && (
+                {(isAdmin ||
+                  (isNgo &&
+                    ["scheduled", "en_route"].includes(String(p.status)) &&
+                    !p.actual_pickup_time)) && (
                   <Button
                     size="sm"
                     variant="ghost"

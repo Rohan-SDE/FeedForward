@@ -1,3 +1,5 @@
+import AdminReviews from "@/components/AdminReviews";
+import SupportPanel from "@/components/SupportPanel";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -57,6 +59,7 @@ function Admin() {
         </p>
       </div>
 
+      <AdminReviews profiles={overview.data?.profiles ?? []} />
       <div className="grid gap-3">
         {((overview.data?.profiles ?? []) as Row[]).map((p) => (
           <div
@@ -73,16 +76,17 @@ function Admin() {
             <Button
               size="sm"
               variant={p.verified ? "outline" : "default"}
-              disabled={verify.isPending}
+              disabled={verify.isPending || !p.verified}
               onClick={() => verify.mutate({ data: { id: p.id as string, verified: !p.verified } })}
             >
-              {p.verified ? "Revoke verification" : "Verify"}
+              {p.verified ? "Revoke approval" : "Review application above"}
             </Button>
           </div>
         ))}
       </div>
 
       <FeedbackSection pickups={[]} roles={["admin"]} />
+      <SupportPanel />
     </div>
   );
 }
