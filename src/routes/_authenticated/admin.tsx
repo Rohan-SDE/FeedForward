@@ -1,10 +1,12 @@
+import AdminReviews from "@/components/AdminReviews";
+import SupportPanel from "@/components/SupportPanel";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { adminOverview, setVerified } from "@/lib/feedforward.functions";
 import type { Row } from "@/lib/rows";
 import { Button } from "@/components/ui/button";
+import FeedbackSection from "@/components/FeedbackSection";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -26,11 +28,11 @@ function Admin() {
   const qc = useQueryClient();
   const overview = useQuery({
     queryKey: ["adminOverview"],
-    queryFn: useServerFn(adminOverview),
+    queryFn: adminOverview,
     retry: false,
   });
   const verify = useMutation({
-    mutationFn: useServerFn(setVerified),
+    mutationFn: setVerified,
     onSuccess: () => {
       toast.success("Updated");
       qc.invalidateQueries({ queryKey: ["adminOverview"] });
@@ -57,6 +59,7 @@ function Admin() {
         </p>
       </div>
 
+      <AdminReviews profiles={overview.data?.profiles ?? []} />
       <div className="grid gap-3">
         {((overview.data?.profiles ?? []) as Row[]).map((p) => (
           <div
@@ -73,14 +76,17 @@ function Admin() {
             <Button
               size="sm"
               variant={p.verified ? "outline" : "default"}
-              disabled={verify.isPending}
+              disabled={verify.isPending || !p.verified}
               onClick={() => verify.mutate({ data: { id: p.id as string, verified: !p.verified } })}
             >
-              {p.verified ? "Revoke verification" : "Verify"}
+              {p.verified ? "Revoke approval" : "Review application above"}
             </Button>
           </div>
         ))}
       </div>
+
+      <FeedbackSection pickups={[]} roles={["admin"]} />
+      <SupportPanel />
     </div>
   );
 }

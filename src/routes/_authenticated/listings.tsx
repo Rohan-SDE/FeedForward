@@ -1,10 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { MapPin, Search, SlidersHorizontal } from "lucide-react";
-import { browseListings, claimListing } from "@/lib/feedforward.functions";
+import { browseListings, claimWithDelivery } from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import type { Row } from "@/lib/rows";
 import {
@@ -17,6 +16,7 @@ import {
   type StorageTemp,
 } from "@/lib/food";
 import { UrgencyBadge } from "@/components/UrgencyBadge";
+import FoodPhoto from "@/components/FoodPhoto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,19 +53,32 @@ export const Route = createFileRoute("/_authenticated/listings")({
       },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { listing?: string | undefined } => ({
+    listing: typeof search["listing"] === "string" ? search["listing"] : undefined,
+  }),
   component: Listings,
 });
 
 function Listings() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { listing: selectedListing } = Route.useSearch();
   const { data: me } = useMe();
-  const listings = useQuery({ queryKey: ["browse"], queryFn: useServerFn(browseListings) });
+  const canClaim = !!me?.roles.includes("ngo");
+  const listings = useQuery({
+    queryKey: ["browse", me?.profile?.latitude, me?.profile?.longitude],
+    queryFn: browseListings,
+    refetchInterval: 10_000,
+  });
   const claim = useMutation({
-    mutationFn: useServerFn(claimListing),
-    onSuccess: () => {
-      toast.success("Claimed — now schedule the pickup");
+    mutationFn: claimWithDelivery,
+    onSuccess: (result) => {
+      toast.success("Claimed — opening order tracking");
       setActive(null);
       qc.invalidateQueries();
+      if ("pickup_id" in result && typeof result.pickup_id === "string") {
+        navigate({ to: "/delivery/$pickupId", params: { pickupId: result.pickup_id } });
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -78,6 +91,16 @@ function Listings() {
   const [active, setActive] = useState<Row | null>(null);
   const [claimQty, setClaimQty] = useState("");
   const [note, setNote] = useState("");
+  const openedListing = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!selectedListing || !listings.data || openedListing.current === selectedListing) return;
+    const item = listings.data.find((row) => row.id === selectedListing);
+    if (item) {
+      openedListing.current = selectedListing;
+      setActive(item);
+      setClaimQty(String(Number(item.quantity) - Number(item.claimed_quantity ?? 0)));
+    }
+  }, [selectedListing, listings.data]);
 
   const myLat = me?.profile?.latitude as number | null | undefined;
   const myLng = me?.profile?.longitude as number | null | undefined;
@@ -89,16 +112,18 @@ function Listings() {
         ...l,
         remaining: Number(l.quantity) - Number(l.claimed_quantity ?? 0),
         km:
-          myLat != null && myLng != null && l.latitude != null && l.longitude != null
-            ? distanceKm(myLat, myLng, Number(l.latitude), Number(l.longitude))
-            : null,
+          l.distance_km != null
+            ? Number(l.distance_km)
+            : myLat != null && myLng != null && l.latitude != null && l.longitude != null
+              ? distanceKm(myLat, myLng, Number(l.latitude), Number(l.longitude))
+              : null,
       }))
       .filter((l) => {
         if (hideExpired && urgencyOf(l.best_before) === "expired") return false;
         if (l.remaining <= 0) return false;
         if (diet !== "any" && l.diet !== diet) return false;
         if (storage !== "any" && l.storage !== storage) return false;
-        if (maxKm && l.km != null && l.km > Number(maxKm)) return false;
+        if (maxKm && (l.km == null || l.km > Number(maxKm))) return false;
         const needle = q.trim().toLowerCase();
         if (needle && !`${l.title} ${l.food_type} ${l.city ?? ""}`.toLowerCase().includes(needle))
           return false;
@@ -137,6 +162,18 @@ function Listings() {
         </p>
       </div>
 
+      {listings.isLoading && <p role="status">Loading available food from approved donors…</p>}
+      {listings.error && (
+        <div role="alert" className="surface-panel p-4">
+          <p>{listings.error.message}</p>
+          <Button onClick={() => void listings.refetch()}>Retry food search</Button>
+        </div>
+      )}
+      {maxKm && (myLat == null || myLng == null) && (
+        <p role="alert">
+          Save your location in Profile before filtering by distance, or clear the distance filter.
+        </p>
+      )}
       <div className="surface-panel grid gap-4 p-5 md:grid-cols-5">
         <div className="md:col-span-2">
           <Label htmlFor="q" className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -223,6 +260,7 @@ function Listings() {
       <div className="grid gap-4 md:grid-cols-2">
         {rows.map((l) => (
           <article key={l.id} className="surface-panel flex flex-col gap-3 p-5">
+            <FoodPhoto src={l.photo_url} alt={`${l.title} food`} className="h-44 w-full" />
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-semibold">{l.title}</h2>
@@ -268,13 +306,15 @@ function Listings() {
               </span>
               <Button
                 size="sm"
+                disabled={!canClaim}
+                title={canClaim ? "Claim this food" : "Only NGO accounts can claim food"}
                 onClick={() => {
                   setActive(l);
                   setClaimQty(String(l.remaining));
                   setNote("");
                 }}
               >
-                Claim food
+                {canClaim ? "Claim food" : "NGO account required"}
               </Button>
             </div>
           </article>
@@ -317,6 +357,9 @@ function Listings() {
               />
             </div>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Claiming requests an available rider and opens the order tracking map.
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setActive(null)}>
               Cancel

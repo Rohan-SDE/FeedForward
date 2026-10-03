@@ -1,10 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Leaf, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { setMyRole } from "@/lib/feedforward.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +37,9 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const applyRole = useServerFn(setMyRole);
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+  const applyRole = setMyRole;
   const [busy, setBusy] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -49,6 +49,49 @@ function AuthPage() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<"donor" | "ngo" | "volunteer">("donor");
   const [pendingEmail, setPendingEmail] = useState(false);
+  const [recovery, setRecovery] = useState(false);
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  async function requestReset() {
+    if (!email.trim()) {
+      toast.error("Enter your email address first");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) throw error;
+      toast.success("If this email has an account, a reset link will arrive shortly.");
+    } catch {
+      toast.error("Could not request a reset. Please try again later.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updatePassword(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      await supabase.auth.signOut();
+      setRecovery(false);
+      setPassword("");
+      toast.success("Password updated. Sign in with your new password.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Password update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
@@ -84,7 +127,7 @@ function AuthPage() {
     }
     if (!data.session) {
       if (data.user && data.user.identities?.length === 0) {
-        toast.info("This email is already registered — we resent the confirmation link.");
+        toast.info("Check your inbox, or sign in if you already have an account.");
       }
       setPendingEmail(true);
       return;
@@ -113,24 +156,9 @@ function AuthPage() {
     toast.success("Confirmation email sent again.");
   }
 
-  async function google() {
-    setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      setBusy(false);
-      toast.error("Google sign-in failed. Please try again.");
-      return;
-    }
-    if (result.redirected) return;
-    setBusy(false);
-    navigate({ to: "/dashboard" });
-  }
-
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4 py-10">
-      <div className="w-full max-w-md">
+      <fieldset disabled={!ready} className="w-full max-w-md">
         <Link
           to="/"
           className="mb-8 flex items-center justify-center gap-2 font-display text-xl font-bold"
@@ -141,7 +169,22 @@ function AuthPage() {
           FeedForward
         </Link>
 
-        {pendingEmail ? (
+        {recovery ? (
+          <form onSubmit={updatePassword} className="surface-panel grid gap-4 p-8">
+            <h1 className="text-xl font-semibold">Choose a new password</h1>
+            <Label htmlFor="new-password">New password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={12}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <Button disabled={busy}>Update password</Button>
+          </form>
+        ) : pendingEmail ? (
           <div className="surface-panel p-8 text-center">
             <h1 className="text-xl font-semibold">Check your email</h1>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -195,6 +238,9 @@ function AuthPage() {
                   </div>
                   <Button type="submit" disabled={busy} className="mt-2">
                     {busy && <Loader2 className="mr-2 size-4 animate-spin" />} Sign in
+                  </Button>
+                  <Button type="button" variant="ghost" disabled={busy} onClick={requestReset}>
+                    Forgot password?
                   </Button>
                 </form>
               </TabsContent>
@@ -262,7 +308,7 @@ function AuthPage() {
                       id="su-pass"
                       type="password"
                       required
-                      minLength={6}
+                      minLength={12}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
@@ -273,17 +319,9 @@ function AuthPage() {
                 </form>
               </TabsContent>
             </Tabs>
-
-            <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
-              <span className="h-px flex-1 bg-border" /> or{" "}
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <Button variant="outline" className="w-full" onClick={google} disabled={busy}>
-              Continue with Google
-            </Button>
           </div>
         )}
-      </div>
+      </fieldset>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { Leaf, Scale, Soup, Users } from "lucide-react";
 import { getImpact } from "@/lib/feedforward.functions";
 import type { Row } from "@/lib/rows";
@@ -26,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/impact")({
 });
 
 function Impact() {
-  const impact = useQuery({ queryKey: ["impact"], queryFn: useServerFn(getImpact) });
+  const impact = useQuery({ queryKey: ["impact"], queryFn: getImpact });
   const records = (impact.data?.records ?? []) as Row[];
 
   const meals = records.reduce((s, r) => s + Number(r.meals_saved ?? 0), 0);

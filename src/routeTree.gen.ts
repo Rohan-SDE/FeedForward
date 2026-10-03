@@ -16,10 +16,14 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDonateRouteImport } from './routes/_authenticated/donate'
+import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
 import { Route as AuthenticatedImpactRouteImport } from './routes/_authenticated/impact'
 import { Route as AuthenticatedListingsRouteImport } from './routes/_authenticated/listings'
+import { Route as AuthenticatedNgosRouteImport } from './routes/_authenticated/ngos'
 import { Route as AuthenticatedPickupsRouteImport } from './routes/_authenticated/pickups'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
+import { Route as AuthenticatedDeliveryPickupIdRouteImport } from './routes/_authenticated/delivery.$pickupId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -55,6 +59,11 @@ const AuthenticatedDonateRoute = AuthenticatedDonateRouteImport.update({
   path: '/donate',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedHistoryRoute = AuthenticatedHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedImpactRoute = AuthenticatedImpactRouteImport.update({
   id: '/impact',
   path: '/impact',
@@ -63,6 +72,11 @@ const AuthenticatedImpactRoute = AuthenticatedImpactRouteImport.update({
 const AuthenticatedListingsRoute = AuthenticatedListingsRouteImport.update({
   id: '/listings',
   path: '/listings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedNgosRoute = AuthenticatedNgosRouteImport.update({
+  id: '/ngos',
+  path: '/ngos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPickupsRoute = AuthenticatedPickupsRouteImport.update({
@@ -75,6 +89,17 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDeliveryPickupIdRoute =
+  AuthenticatedDeliveryPickupIdRouteImport.update({
+    id: '/delivery/$pickupId',
+    path: '/delivery/$pickupId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -83,10 +108,14 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/donate': typeof AuthenticatedDonateRoute
+  '/history': typeof AuthenticatedHistoryRoute
   '/impact': typeof AuthenticatedImpactRoute
   '/listings': typeof AuthenticatedListingsRoute
+  '/ngos': typeof AuthenticatedNgosRoute
   '/pickups': typeof AuthenticatedPickupsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/support': typeof AuthenticatedSupportRoute
+  '/delivery/$pickupId': typeof AuthenticatedDeliveryPickupIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -95,10 +124,14 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/donate': typeof AuthenticatedDonateRoute
+  '/history': typeof AuthenticatedHistoryRoute
   '/impact': typeof AuthenticatedImpactRoute
   '/listings': typeof AuthenticatedListingsRoute
+  '/ngos': typeof AuthenticatedNgosRoute
   '/pickups': typeof AuthenticatedPickupsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/support': typeof AuthenticatedSupportRoute
+  '/delivery/$pickupId': typeof AuthenticatedDeliveryPickupIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,10 +142,14 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/donate': typeof AuthenticatedDonateRoute
+  '/_authenticated/history': typeof AuthenticatedHistoryRoute
   '/_authenticated/impact': typeof AuthenticatedImpactRoute
   '/_authenticated/listings': typeof AuthenticatedListingsRoute
+  '/_authenticated/ngos': typeof AuthenticatedNgosRoute
   '/_authenticated/pickups': typeof AuthenticatedPickupsRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/support': typeof AuthenticatedSupportRoute
+  '/_authenticated/delivery/$pickupId': typeof AuthenticatedDeliveryPickupIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -123,10 +160,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/donate'
+    | '/history'
     | '/impact'
     | '/listings'
+    | '/ngos'
     | '/pickups'
     | '/profile'
+    | '/support'
+    | '/delivery/$pickupId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -135,10 +176,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/donate'
+    | '/history'
     | '/impact'
     | '/listings'
+    | '/ngos'
     | '/pickups'
     | '/profile'
+    | '/support'
+    | '/delivery/$pickupId'
   id:
     | '__root__'
     | '/'
@@ -148,10 +193,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/dashboard'
     | '/_authenticated/donate'
+    | '/_authenticated/history'
     | '/_authenticated/impact'
     | '/_authenticated/listings'
+    | '/_authenticated/ngos'
     | '/_authenticated/pickups'
     | '/_authenticated/profile'
+    | '/_authenticated/support'
+    | '/_authenticated/delivery/$pickupId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -212,6 +261,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDonateRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/history': {
+      id: '/_authenticated/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof AuthenticatedHistoryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/impact': {
       id: '/_authenticated/impact'
       path: '/impact'
@@ -224,6 +280,13 @@ declare module '@tanstack/react-router' {
       path: '/listings'
       fullPath: '/listings'
       preLoaderRoute: typeof AuthenticatedListingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ngos': {
+      id: '/_authenticated/ngos'
+      path: '/ngos'
+      fullPath: '/ngos'
+      preLoaderRoute: typeof AuthenticatedNgosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/pickups': {
@@ -240,6 +303,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/support': {
+      id: '/_authenticated/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof AuthenticatedSupportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/delivery/$pickupId': {
+      id: '/_authenticated/delivery/$pickupId'
+      path: '/delivery/$pickupId'
+      fullPath: '/delivery/$pickupId'
+      preLoaderRoute: typeof AuthenticatedDeliveryPickupIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -247,20 +324,28 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDonateRoute: typeof AuthenticatedDonateRoute
+  AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
   AuthenticatedImpactRoute: typeof AuthenticatedImpactRoute
   AuthenticatedListingsRoute: typeof AuthenticatedListingsRoute
+  AuthenticatedNgosRoute: typeof AuthenticatedNgosRoute
   AuthenticatedPickupsRoute: typeof AuthenticatedPickupsRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
+  AuthenticatedDeliveryPickupIdRoute: typeof AuthenticatedDeliveryPickupIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDonateRoute: AuthenticatedDonateRoute,
+  AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
   AuthenticatedImpactRoute: AuthenticatedImpactRoute,
   AuthenticatedListingsRoute: AuthenticatedListingsRoute,
+  AuthenticatedNgosRoute: AuthenticatedNgosRoute,
   AuthenticatedPickupsRoute: AuthenticatedPickupsRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedSupportRoute: AuthenticatedSupportRoute,
+  AuthenticatedDeliveryPickupIdRoute: AuthenticatedDeliveryPickupIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

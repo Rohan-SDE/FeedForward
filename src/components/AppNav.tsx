@@ -6,14 +6,18 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useMe";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const links = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/listings", label: "Nearby food" },
+  { to: "/ngos", label: "Nearby NGOs" },
   { to: "/donate", label: "Post surplus" },
   { to: "/pickups", label: "Pickups" },
   { to: "/impact", label: "Impact" },
   { to: "/profile", label: "Profile" },
+  { to: "/history", label: "History" },
+  { to: "/support", label: "Support" },
 ] as const;
 
 export function AppNav() {
@@ -24,6 +28,7 @@ export function AppNav() {
   const [open, setOpen] = useState(false);
 
   const isAdmin = !!me?.roles.includes("admin");
+  const canDonate = isAdmin || !!me?.roles.includes("donor");
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -32,7 +37,13 @@ export function AppNav() {
     navigate({ to: "/auth", replace: true });
   }
 
-  const items = isAdmin ? [...links, { to: "/admin", label: "Admin" } as const] : links;
+  const roleLinks = links.filter(
+    (link) =>
+      (link.to !== "/donate" || canDonate) &&
+      (link.to !== "/ngos" || !!me?.roles.includes("donor") || isAdmin) &&
+      (link.to !== "/listings" || isAdmin || me?.roles.includes("ngo")),
+  );
+  const items = isAdmin ? [...roleLinks, { to: "/admin", label: "Admin" } as const] : roleLinks;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur">
@@ -44,7 +55,7 @@ export function AppNav() {
           FeedForward
         </Link>
 
-        <nav className="ml-4 hidden items-center gap-1 md:flex">
+        <nav className="ml-4 hidden items-center gap-1 xl:flex">
           {items.map((l) => (
             <Link
               key={l.to}
@@ -60,6 +71,7 @@ export function AppNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <NotificationBell />
           <span className="hidden max-w-[14rem] truncate text-sm text-muted-foreground sm:block">
             {me?.profile?.org_name || me?.profile?.full_name || ""}
           </span>
@@ -69,7 +81,7 @@ export function AppNav() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="xl:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="Open menu"
           >
@@ -79,7 +91,7 @@ export function AppNav() {
       </div>
 
       {open && (
-        <nav className="grid gap-1 border-t border-border px-4 py-3 md:hidden">
+        <nav className="grid gap-1 border-t border-border px-4 py-3 xl:hidden">
           {items.map((l) => (
             <Link
               key={l.to}
