@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +47,8 @@ function Profile() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const isRider = !!me?.roles.includes("volunteer");
+  const needsApproval = !!me?.roles.some((role) => role === "donor" || role === "ngo");
   const [form, setForm] = useState({
     full_name: "",
     org_name: "",
@@ -122,7 +124,13 @@ function Profile() {
         {me?.roles?.length ? (
           <p className="mt-2 text-sm text-muted-foreground">
             Roles: <span className="font-medium text-foreground">{me.roles.join(", ")}</span>
-            {me.profile?.verified ? " · verified" : " · pending verification"}
+            {needsApproval
+              ? me.profile?.verified
+                ? " · approved"
+                : " · pending administrator approval"
+              : isRider
+                ? " · individual contributor"
+                : ""}
           </p>
         ) : null}
       </div>
@@ -143,13 +151,23 @@ function Profile() {
                 disabled={chooseRole.isPending}
                 onClick={() => chooseRole.mutate({ data: { role } })}
               >
-                {role === "ngo" ? "NGO / shelter" : role[0]!.toUpperCase() + role.slice(1)}
+                {role === "ngo"
+                  ? "NGO / shelter"
+                  : role === "volunteer"
+                    ? "Rider / individual contributor"
+                    : "Donor"}
               </Button>
             ))}
           </div>
         </section>
       )}
 
+      {isRider && (
+        <p className="text-sm text-muted-foreground">
+          No organisation is required for individual riders. Add your contact details and location
+          to find nearby delivery requests.
+        </p>
+      )}
       <form onSubmit={submit} className="surface-panel grid gap-5 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -163,10 +181,13 @@ function Profile() {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="on">Organisation</Label>
+            <Label htmlFor="on">{isRider ? "Organisation (optional)" : "Organisation"}</Label>
             <Input
               id="on"
               maxLength={160}
+              placeholder={
+                isRider ? "Leave blank if you deliver independently" : "Organisation name"
+              }
               value={form.org_name}
               onChange={(e) => set("org_name", e.target.value)}
             />
@@ -235,7 +256,7 @@ function Profile() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="submit" disabled={save.isPending || !me?.roles.length}>
             Save profile
           </Button>
           <Button type="button" variant="outline" onClick={locate}>
@@ -243,6 +264,11 @@ function Profile() {
           </Button>
         </div>
       </form>
+      {!!me?.roles.length && (
+        <Link to="/dashboard" className="text-sm underline">
+          Continue to dashboard
+        </Link>
+      )}
     </div>
   );
 }

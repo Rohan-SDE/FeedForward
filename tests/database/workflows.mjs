@@ -764,6 +764,49 @@ await test("resolved support retains messages and can be reopened", async () => 
     3,
   );
 });
+
+await test("Google-style signup starts unapproved and without an implicit role", async () => {
+  ids.google = "00000000-0000-0000-0000-000000009001";
+  await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)", [
+    ids.google,
+    "google@example.test",
+    JSON.stringify({ full_name: "Google participant", provider_id: "sample" }),
+  ]);
+  const profile = (await db.query("SELECT * FROM public.profiles WHERE id=$1", [ids.google]))
+    .rows[0];
+  assert.equal(profile.full_name, "Google participant");
+  assert.equal(profile.org_name, null);
+  assert.equal(profile.verified, false);
+  assert.equal(
+    (await db.query("SELECT * FROM public.user_roles WHERE user_id=$1", [ids.google])).rows.length,
+    0,
+  );
+  await assert.rejects(
+    asUser("google", "INSERT INTO public.user_roles(user_id,role) VALUES(auth.uid(),'admin')"),
+    /row-level security/,
+  );
+  await asUser(
+    "google",
+    "INSERT INTO public.user_roles(user_id,role) VALUES(auth.uid(),'volunteer')",
+  );
+  await assert.rejects(
+    asUser("google", "INSERT INTO public.user_roles(user_id,role) VALUES(auth.uid(),'donor')"),
+  );
+});
+await test("email riders can register without any organisation", async () => {
+  const id = "00000000-0000-0000-0000-000000009002";
+  await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)", [
+    id,
+    "rider@example.test",
+    JSON.stringify({ full_name: "Independent rider", org_name: null, role: "volunteer" }),
+  ]);
+  const profile = (await db.query("SELECT * FROM public.profiles WHERE id=$1", [id])).rows[0];
+  assert.equal(profile.org_name, null);
+  assert.equal(
+    (await db.query("SELECT role FROM public.user_roles WHERE user_id=$1", [id])).rows[0].role,
+    "volunteer",
+  );
+});
 console.log(
   `${passed} database checks passed (${realDatabase ? "PostgreSQL + concurrent claim test" : "single-session PGlite; no concurrency/load test"})`,
 );
