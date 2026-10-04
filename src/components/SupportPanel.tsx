@@ -70,6 +70,8 @@ export default function SupportPanel() {
   const { data: me } = useMe();
   const admin = !!me?.roles.includes("admin");
   const qc = useQueryClient();
+  const [view, setView] = useState("active");
+  const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const tickets = useQuery({ queryKey: ["support"], queryFn: listSupport, refetchInterval: 15000 });
@@ -116,10 +118,55 @@ export default function SupportPanel() {
       )}
       {tickets.isLoading && <p>Loading tickets…</p>}
       {tickets.error && <p role="alert">{tickets.error.message}</p>}
-      {tickets.data?.length === 0 && <p>No support requests yet.</p>}
-      {tickets.data?.map((t) => (
-        <Ticket key={t.id} ticket={t} admin={admin} />
-      ))}
+      <div className="flex flex-wrap gap-2">
+        {["active", "resolved"].map((value) => (
+          <Button
+            key={value}
+            variant={view === value ? "default" : "outline"}
+            onClick={() => setView(value)}
+          >
+            {value === "active" ? "Active tickets" : "Resolved archive"} (
+            {tickets.data?.filter((t) => (t.status === "resolved") === (value === "resolved"))
+              .length ?? 0}
+            )
+          </Button>
+        ))}
+      </div>
+      <Input
+        aria-label="Search tickets"
+        placeholder="Search ticket ID, subject or conversation"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      {tickets.data?.filter((t) => (t.status === "resolved") === (view === "resolved")).length ===
+        0 && <p>No {view} tickets.</p>}
+      {tickets.data
+        ?.filter(
+          (t) =>
+            (t.status === "resolved") === (view === "resolved") &&
+            [t.id, t.subject, ...(t.support_messages ?? []).map((m: Row) => m.body)]
+              .join(" ")
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+        )
+        .map((t) =>
+          view === "resolved" ? (
+            <details key={t.id} className="surface-panel p-4">
+              <summary className="cursor-pointer">
+                {t.subject} · Resolved · {new Date(t.updated_at).toLocaleString()}
+              </summary>
+              <p className="mt-3 text-sm">
+                The conversation is preserved.{" "}
+                {admin
+                  ? "Reply with Open or In progress to reopen this ticket."
+                  : "Reply to reopen this ticket if the problem returns."}
+              </p>
+              <Ticket key={`${t.id}:${t.status}`} ticket={t} admin={admin} />
+            </details>
+          ) : (
+            <Ticket key={`${t.id}:${t.status}`} ticket={t} admin={admin} />
+          ),
+        )}
     </section>
   );
 }

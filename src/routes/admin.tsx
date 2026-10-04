@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMe } from "@/lib/feedforward.functions";
+import AdminUserDetails from "@/components/AdminUserDetails";
 import AdminReviews from "@/components/AdminReviews";
 import SupportPanel from "@/components/SupportPanel";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
@@ -37,6 +38,8 @@ export const Route = createFileRoute("/admin")({
 function Admin() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState("");
   const [section, setSection] = useState("Overview");
   async function signOut() {
     const { error } = await supabase.auth.signOut();
@@ -133,32 +136,96 @@ function Admin() {
         )}
         {section === "Approvals" && <AdminReviews profiles={overview.data?.profiles ?? []} />}
         {section === "Users" && (
-          <div className="grid gap-3">
-            {((overview.data?.profiles ?? []) as Row[]).map((p) => (
-              <div
-                key={p.id}
-                className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{p.org_name || p.full_name || "Unnamed"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(roleMap.get(p.id) ?? ["no role"]).join(", ")} · {p.city ?? "no city"} ·{" "}
-                    {p.verified ? "verified" : "unverified"}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant={p.verified ? "outline" : "default"}
-                  disabled={verify.isPending || !p.verified}
-                  onClick={() => {
-                    if (window.confirm("Revoke approval for this account?"))
-                      verify.mutate({ data: { id: p.id as string, verified: false } });
-                  }}
-                >
-                  {p.verified ? "Revoke approval" : "Use Approvals section"}
-                </Button>
-              </div>
-            ))}
+          <div className="grid gap-6">
+            <label className="grid gap-2">
+              Search users
+              <input
+                className="rounded border bg-background p-3"
+                placeholder="Name, email, phone or user ID"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+              />
+            </label>
+            {[
+              ["donor", "Donors"],
+              ["ngo", "NGOs"],
+              ["volunteer", "Riders"],
+            ].map(([role, label]) => {
+              const users = ((overview.data?.profiles ?? []) as Row[]).filter(
+                (p) =>
+                  roleMap.get(p.id)?.includes(role!) &&
+                  [p.org_name, p.full_name, p.email, p.phone, p.id]
+                    .join(" ")
+                    .toLowerCase()
+                    .includes(userSearch.toLowerCase()),
+              );
+              return (
+                <section key={role} className="surface-panel p-5">
+                  <h2 className="mb-4 text-xl font-semibold">
+                    {label} ({users.length})
+                  </h2>
+                  {!users.length && <p>No matching users.</p>}
+                  {users.map((p) => (
+                    <article key={p.id} className="border-t py-4">
+                      <p className="font-semibold">{p.org_name || p.full_name || "Unnamed"}</p>
+                      <p className="break-words text-sm">
+                        {p.email} · {p.city || "No city"} ·{" "}
+                        {p.verified ? "Approved" : "Not approved"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setSelectedUser(selectedUser === p.id ? null : p.id)}
+                        >
+                          {selectedUser === p.id ? "Close details" : "View details & actions"}
+                        </Button>
+                        {p.verified && (
+                          <Button
+                            variant="outline"
+                            disabled={verify.isPending}
+                            onClick={() => {
+                              if (window.confirm("Revoke approval for this account?"))
+                                verify.mutate({ data: { id: p.id, verified: false } });
+                            }}
+                          >
+                            Revoke approval
+                          </Button>
+                        )}
+                      </div>
+                      {selectedUser === p.id && <AdminUserDetails key={p.id} id={p.id} />}
+                    </article>
+                  ))}
+                </section>
+              );
+            })}
+            <details className="surface-panel p-5">
+              <summary>Administrators and accounts without a participant role</summary>
+              {((overview.data?.profiles ?? []) as Row[])
+                .filter(
+                  (p) =>
+                    !(roleMap.get(p.id) ?? []).some((r) =>
+                      ["donor", "ngo", "volunteer"].includes(r),
+                    ),
+                )
+                .map((p) => (
+                  <div key={p.id} className="mt-3">
+                    <p>
+                      {p.full_name || p.org_name || p.id} · {p.email}
+                    </p>
+                    <details>
+                      <summary>Profile details</summary>
+                      <dl>
+                        {Object.entries(p).map(([key, value]) => (
+                          <div key={key}>
+                            <dt>{key}</dt>
+                            <dd className="break-words">{String(value ?? "Not provided")}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  </div>
+                ))}
+            </details>
           </div>
         )}
         {section === "Listings" && (

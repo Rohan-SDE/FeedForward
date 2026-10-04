@@ -18,7 +18,7 @@ def client():
 
 def test_support_read_uses_user_rls(client,monkeypatch):
     request=AsyncMock(return_value=[])
-    monkeypatch.setattr(gateway,'rows',request)
+    monkeypatch.setattr(gateway,'request',request)
     assert client.get('/api/support').status_code==200
     assert request.call_args.kwargs['token']=='user-token'
     assert not request.call_args.kwargs.get('admin')
