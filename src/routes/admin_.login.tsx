@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { getMe } from "@/lib/feedforward.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,11 @@ function AdminLogin() {
           </p>
         )}
         <Button disabled={busy}>{busy ? "Checking access…" : "Sign in to administration"}</Button>
+        <GoogleSignInButton disabled={busy} />
+        <p className="text-xs text-muted-foreground">
+          Google sign-in uses your existing account permissions; it does not grant administrator
+          access.
+        </p>
         <Link to="/auth" className="text-sm underline">
           Participant sign in / password recovery
         </Link>

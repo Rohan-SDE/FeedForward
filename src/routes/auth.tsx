@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Leaf, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { setMyRole } from "@/lib/feedforward.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +118,12 @@ function AuthPage() {
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { full_name: fullName, org_name: orgName, phone, role },
+        data: {
+          full_name: fullName.trim(),
+          org_name: orgName.trim() || null,
+          phone: phone.trim(),
+          role,
+        },
       },
     });
     setBusy(false);
@@ -258,7 +264,9 @@ function AuthPage() {
                           Food donor (restaurant, canteen, event)
                         </SelectItem>
                         <SelectItem value="ngo">NGO / shelter</SelectItem>
-                        <SelectItem value="volunteer">Volunteer / delivery agent</SelectItem>
+                        <SelectItem value="volunteer">
+                          Rider / individual delivery partner
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -273,15 +281,30 @@ function AuthPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="su-org">Organisation</Label>
+                    <Label htmlFor="su-org">
+                      {role === "volunteer" ? "Organisation (optional)" : "Organisation"}
+                    </Label>
                     <Input
                       id="su-org"
                       maxLength={160}
                       value={orgName}
                       onChange={(e) => setOrgName(e.target.value)}
-                      placeholder="Optional for volunteers"
+                      placeholder={
+                        role === "volunteer"
+                          ? "Leave blank if you deliver independently"
+                          : "Organisation name"
+                      }
+                      aria-describedby={
+                        role === "volunteer" ? "rider-organisation-help" : undefined
+                      }
                     />
                   </div>
+                  {role === "volunteer" && (
+                    <p id="rider-organisation-help" className="text-sm text-muted-foreground">
+                      Riders are individual contributors. You do not need to belong to an
+                      organisation.
+                    </p>
+                  )}
                   <div className="grid gap-2">
                     <Label htmlFor="su-phone">Phone</Label>
                     <Input
@@ -319,6 +342,16 @@ function AuthPage() {
                 </form>
               </TabsContent>
             </Tabs>
+            <div className="mt-6 grid gap-3 border-t pt-5">
+              <p className="text-center text-sm text-muted-foreground">
+                Or use your Google account
+              </p>
+              <GoogleSignInButton disabled={!ready || busy} />
+              <p className="text-xs text-muted-foreground">
+                New users choose Donor, NGO or Rider after signing in. Existing users keep their
+                account role. Donors and NGOs still need administrator approval.
+              </p>
+            </div>
           </div>
         )}
       </fieldset>

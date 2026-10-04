@@ -24,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   beforeLoad: async () => {
     const me = await getMe();
     if (me.roles.includes("admin")) throw redirect({ to: "/admin" });
+    if (!me.roles.length) throw redirect({ to: "/profile" });
   },
   head: () => ({
     meta: [
