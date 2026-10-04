@@ -6,6 +6,7 @@ import { saveProfile, setMyRole } from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import PhoneAuthPanel from "@/components/PhoneAuthPanel";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -196,7 +197,7 @@ function Profile() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="ph">Phone</Label>
+            <Label htmlFor="ph">Contact phone</Label>
             <Input
               id="ph"
               maxLength={32}
@@ -264,6 +265,9 @@ function Profile() {
           </Button>
         </div>
       </form>
+      <div className="surface-panel p-6">
+        <PhoneAuthPanel link />
+      </div>
       {!!me?.roles.length && (
         <Link to="/dashboard" className="text-sm underline">
           Continue to dashboard

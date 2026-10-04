@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Leaf, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import PhoneAuthPanel from "@/components/PhoneAuthPanel";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { setMyRole } from "@/lib/feedforward.functions";
 import { Button } from "@/components/ui/button";
@@ -214,9 +215,10 @@ function AuthPage() {
         ) : (
           <div className="surface-panel p-6 sm:p-8">
             <Tabs defaultValue="signin">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
                 <TabsTrigger value="signup">Create account</TabsTrigger>
+                <TabsTrigger value="mobile">Mobile</TabsTrigger>
               </TabsList>
 
               <TabsContent value="signin" className="mt-6">
@@ -340,6 +342,9 @@ function AuthPage() {
                     {busy && <Loader2 className="mr-2 size-4 animate-spin" />} Create account
                   </Button>
                 </form>
+              </TabsContent>
+              <TabsContent value="mobile" className="mt-6">
+                <PhoneAuthPanel />
               </TabsContent>
             </Tabs>
             <div className="mt-6 grid gap-3 border-t pt-5">
