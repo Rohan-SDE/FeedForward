@@ -807,6 +807,17 @@ await test("email riders can register without any organisation", async () => {
     "volunteer",
   );
 });
+await test("phone-only signup permits null email and requires role onboarding", async () => {
+  const id = "00000000-0000-0000-0000-000000009003";
+  await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,NULL,'{}')", [id]);
+  const profile = (await db.query("SELECT * FROM public.profiles WHERE id=$1", [id])).rows[0];
+  assert.equal(profile.email, null);
+  assert.equal(profile.verified, false);
+  assert.equal(
+    (await db.query("SELECT * FROM public.user_roles WHERE user_id=$1", [id])).rows.length,
+    0,
+  );
+});
 console.log(
   `${passed} database checks passed (${realDatabase ? "PostgreSQL + concurrent claim test" : "single-session PGlite; no concurrency/load test"})`,
 );
