@@ -1,10 +1,11 @@
 import NearbyNgos from "@/components/NearbyNgos";
 import { toast } from "sonner";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, CheckCircle2, MapPin, PackagePlus, Soup, Truck } from "lucide-react";
 import { useMe } from "@/hooks/useMe";
 import {
+  getMe,
   acceptDeliveryRequest,
   browseListings,
   getImpact,
@@ -20,6 +21,10 @@ import { formatNumber, timeLeftLabel } from "@/lib/food";
 import type { Row } from "@/lib/rows";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  beforeLoad: async () => {
+    const me = await getMe();
+    if (me.roles.includes("admin")) throw redirect({ to: "/admin" });
+  },
   head: () => ({
     meta: [
       { title: "Dashboard — FeedForward" },
