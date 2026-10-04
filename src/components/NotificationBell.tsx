@@ -11,7 +11,7 @@ import {
 
 type Notification = {
   id: string;
-  notification_type: "new_food" | "delivery_request" | "delivery_accepted";
+  notification_type: "new_food" | "delivery_request" | "delivery_accepted" | "system";
   title: string;
   message: string;
   action_url: string;

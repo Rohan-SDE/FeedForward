@@ -8,6 +8,7 @@ import {
   submitDeliveryFeedback,
 } from "@/lib/feedforward.functions";
 import type { Row } from "@/lib/rows";
+import AdminUserDetails from "@/components/AdminUserDetails";
 import FoodPhoto from "@/components/FoodPhoto";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +34,7 @@ function displayName(profile: Row | null | undefined, fallback: string) {
 }
 
 export default function FeedbackSection({ pickups, roles }: { pickups: Row[]; roles: string[] }) {
+  const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
   const isAdmin = roles.includes("admin");
   const qc = useQueryClient();
   const completed = pickups.filter((pickup) => pickup.status === "completed");
@@ -72,34 +74,80 @@ export default function FeedbackSection({ pickups, roles }: { pickups: Row[]; ro
           <ShieldCheck className="size-4" /> Admin feedback review (
           {adminFeedback.data?.length ?? 0})
         </h2>
-        {(adminFeedback.data ?? []).map((feedback: Row) => (
-          <article key={feedback.id} className="surface-panel grid gap-3 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">
-                  {feedback.pickups?.claims?.food_listings?.title ?? "Completed food delivery"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {displayName(feedback.reviewer, "Reviewer")} ({feedback.reviewer_role}) reviewed{" "}
-                  {displayName(feedback.subject, "Participant")} ({feedback.subject_role}) ·{" "}
-                  {LABELS[feedback.category as FeedbackCategory]}
-                </p>
-              </div>
-              <div className="flex" aria-label={`${feedback.rating} out of 5 stars`}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className="size-5 text-amber-500"
-                    fill={star <= feedback.rating ? "currentColor" : "none"}
-                  />
-                ))}
-              </div>
-            </div>
-            <p className="rounded-lg bg-muted p-3 text-sm">{feedback.comment}</p>
-            <p className="text-xs text-muted-foreground">
-              Submitted {new Date(feedback.created_at).toLocaleString()}
-            </p>
-          </article>
+        <p className="text-sm text-muted-foreground">
+          Grouped by the person reviewed. Each review shows who submitted it. Actions apply to the
+          reviewed user.
+        </p>
+        {adminFeedback.isLoading && <p>Loading feedback…</p>}
+        {adminFeedback.error && (
+          <p role="alert">
+            {adminFeedback.error.message}{" "}
+            <Button onClick={() => adminFeedback.refetch()}>Retry</Button>
+          </p>
+        )}
+        {[
+          ["donor", "Donors"],
+          ["ngo", "NGOs"],
+          ["volunteer", "Riders"],
+        ].map(([role, label]) => (
+          <section key={role} className="grid gap-3 rounded border p-4">
+            <h3 className="text-xl font-semibold">
+              {label} ({adminFeedback.data?.filter((f) => f.subject_role === role).length ?? 0})
+            </h3>
+            {!adminFeedback.isLoading &&
+              !adminFeedback.data?.some((f) => f.subject_role === role) && (
+                <p>No feedback about {label?.toLowerCase()}.</p>
+              )}
+            {(adminFeedback.data ?? [])
+              .filter((f) => f.subject_role === role)
+              .map((feedback: Row) => (
+                <article key={feedback.id} className="surface-panel grid gap-3 p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">
+                        {feedback.pickups?.claims?.food_listings?.title ??
+                          "Completed food delivery"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {displayName(feedback.reviewer, "Reviewer")} ({feedback.reviewer_role})
+                        reviewed {displayName(feedback.subject, "Participant")} (
+                        {feedback.subject_role}) · {LABELS[feedback.category as FeedbackCategory]}
+                      </p>
+                    </div>
+                    <div className="flex" aria-label={`${feedback.rating} out of 5 stars`}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className="size-5 text-amber-500"
+                          fill={star <= feedback.rating ? "currentColor" : "none"}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="rounded-lg bg-muted p-3 text-sm">{feedback.comment}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Submitted {new Date(feedback.created_at).toLocaleString()}
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setSelectedFeedback(selectedFeedback === feedback.id ? null : feedback.id)
+                    }
+                  >
+                    {selectedFeedback === feedback.id
+                      ? "Close review actions"
+                      : "Review user & take action"}
+                  </Button>
+                  {selectedFeedback === feedback.id && (
+                    <AdminUserDetails
+                      key={feedback.id}
+                      id={feedback.subject_id}
+                      feedbackId={feedback.id}
+                    />
+                  )}
+                </article>
+              ))}
+          </section>
         ))}
         {!adminFeedback.isLoading && !adminFeedback.data?.length && (
           <p className="text-sm text-muted-foreground">No feedback has been submitted yet.</p>

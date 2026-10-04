@@ -8,7 +8,8 @@ export function useMe() {
   return useQuery({
     queryKey: ["me"],
     queryFn: () => fetchMe(),
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
   });
 }
 

@@ -187,3 +187,24 @@ export const replySupport = (data: { id: string; body: string; status?: string }
     body: data.body,
     status: data.status,
   });
+
+export const getAccountStatus = () =>
+  api<{ blocked: boolean; restriction: Row | null }>("/api/account-status");
+export const getAdminUser = (id: string) =>
+  api<{
+    profile: Row;
+    restrictions: Row[];
+    actions: Row[];
+    verification: Row[];
+    active_pickups: Row[];
+  }>(`/api/admin/users/${id}`);
+export const moderateUser = ({
+  id,
+  ...data
+}: {
+  id: string;
+  action: "warning" | "block" | "unblock";
+  reason: string;
+  blocked_until?: string | null;
+  feedback_id?: string;
+}) => post<{ ok: boolean }>(`/api/admin/users/${id}/moderation`, data);

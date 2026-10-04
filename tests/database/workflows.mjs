@@ -83,8 +83,8 @@ async function schedule(c) {
     )
   )[0];
 }
-await test("all 17 migrations apply", async () =>
-  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 17));
+await test("all 18 migrations apply", async () =>
+  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 18));
 await test("volunteer donation denied", async () => {
   await assert.rejects(
     asUser(
@@ -620,6 +620,149 @@ await test("only NGO food reviews are visible to the matching donor", async () =
   assert.equal((await asUser("volunteer", "SELECT * FROM public.delivery_feedback")).length, 0);
   assert.equal((await asUser("ngo2", "SELECT * FROM public.delivery_feedback")).length, 0);
   assert.ok((await asUser("admin", "SELECT * FROM public.delivery_feedback")).length >= 3);
+});
+
+await test("only administrators can moderate and cannot block themselves", async () => {
+  await assert.rejects(
+    asUser("donor", "SELECT public.moderate_account($1,'block','Test block')", [ids.ngo]),
+    /Admins only/,
+  );
+  await assert.rejects(
+    asUser("admin", "SELECT public.moderate_account($1,'block','Test block')", [ids.admin]),
+    /Administrator accounts/,
+  );
+  await assert.rejects(
+    asUser(
+      "admin",
+      "SELECT public.moderate_account($1,'block','Test block',now()-interval '1 hour')",
+      [ids.ngo],
+    ),
+    /future/,
+  );
+});
+await test("permanent blocks stop direct writes and workflow RPCs but allow support", async () => {
+  await asUser("admin", "SELECT public.moderate_account($1,'block','Reviewed evidence')", [
+    ids.donor,
+  ]);
+  assert.equal(
+    (await asUser("donor", "SELECT public.account_is_blocked(auth.uid()) AS blocked"))[0].blocked,
+    true,
+  );
+  await assert.rejects(
+    asUser("donor", "UPDATE public.profiles SET full_name='Bypass' WHERE id=auth.uid()"),
+    /blocked/,
+  );
+  await assert.rejects(
+    asUser("donor", "SELECT public.cancel_food_listing(gen_random_uuid())"),
+    /blocked/,
+  );
+  assert.equal(
+    (await asUser("donor", "SELECT public.has_current_role('donor') AS allowed"))[0].allowed,
+    false,
+  );
+  await asUser(
+    "donor",
+    "SELECT public.open_support_ticket('Appeal suspension','Please review my account restriction')",
+  );
+  assert.equal((await asUser("donor", "SELECT * FROM public.moderation_actions")).length, 0);
+  await asUser("admin", "SELECT public.moderate_account($1,'unblock','Review completed')", [
+    ids.donor,
+  ]);
+  await asUser(
+    "donor",
+    "UPDATE public.profiles SET full_name='Restored donor' WHERE id=auth.uid()",
+  );
+});
+await test("temporary blocks expire without a cleanup job and retain audit history", async () => {
+  await asUser(
+    "admin",
+    "SELECT public.moderate_account($1,'block','Temporary restriction',now()+interval '1 day')",
+    [ids.volunteer],
+  );
+  assert.equal(
+    (await asUser("volunteer", "SELECT public.account_is_blocked(auth.uid()) AS blocked"))[0]
+      .blocked,
+    true,
+  );
+  await assert.rejects(
+    asUser("volunteer", "SELECT public.read_delivery_location(gen_random_uuid())"),
+    /blocked/,
+  );
+  await assert.rejects(
+    asUser("volunteer", "SELECT public.set_rider_presence(true,22,88)"),
+    /blocked/,
+  );
+  await db.query(
+    "UPDATE public.account_restrictions SET blocked_until=now()-interval '1 second' WHERE user_id=$1",
+    [ids.volunteer],
+  );
+  assert.equal(
+    (await asUser("volunteer", "SELECT public.account_is_blocked(auth.uid()) AS blocked"))[0]
+      .blocked,
+    false,
+  );
+  assert.equal(
+    (await asUser("volunteer", "SELECT public.has_current_role('volunteer') AS allowed"))[0]
+      .allowed,
+    true,
+  );
+  assert.ok(
+    (
+      await asUser("admin", "SELECT * FROM public.moderation_actions WHERE user_id=$1", [
+        ids.volunteer,
+      ])
+    ).length,
+  );
+});
+await test("feedback actions must target the reviewed participant and warnings are recorded", async () => {
+  const feedback = (
+    await db.query(
+      "SELECT id,subject_id FROM public.delivery_feedback WHERE subject_id=$1 LIMIT 1",
+      [ids.donor],
+    )
+  ).rows[0];
+  await assert.rejects(
+    asUser(
+      "admin",
+      "SELECT public.moderate_account($1,'warning','Review this complaint',NULL,$2)",
+      [ids.ngo, feedback.id],
+    ),
+    /does not refer/,
+  );
+  await asUser(
+    "admin",
+    "SELECT public.moderate_account($1,'warning','Review this complaint',NULL,$2)",
+    [ids.donor, feedback.id],
+  );
+  const actions = await asUser(
+    "admin",
+    "SELECT * FROM public.moderation_actions WHERE feedback_id=$1",
+    [feedback.id],
+  );
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].user_id, ids.donor);
+});
+await test("resolved support retains messages and can be reopened", async () => {
+  const t = (
+    await asUser(
+      "ngo",
+      "SELECT public.open_support_ticket('Delivery issue','Please help with the delivery') AS id",
+    )
+  )[0].id;
+  await asUser("admin", "SELECT public.reply_support_ticket($1,'Issue fixed','resolved')", [t]);
+  assert.equal(
+    (await asUser("ngo", "SELECT status FROM public.support_tickets WHERE id=$1", [t]))[0].status,
+    "resolved",
+  );
+  await asUser("ngo", "SELECT public.reply_support_ticket($1,'The issue returned',NULL)", [t]);
+  assert.equal(
+    (await asUser("ngo", "SELECT status FROM public.support_tickets WHERE id=$1", [t]))[0].status,
+    "open",
+  );
+  assert.equal(
+    (await asUser("ngo", "SELECT * FROM public.support_messages WHERE ticket_id=$1", [t])).length,
+    3,
+  );
 });
 console.log(
   `${passed} database checks passed (${realDatabase ? "PostgreSQL + concurrent claim test" : "single-session PGlite; no concurrency/load test"})`,

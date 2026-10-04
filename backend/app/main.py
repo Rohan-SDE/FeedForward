@@ -185,11 +185,15 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-async def current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
+async def current_user(request: Request, authorization: str | None = Header(default=None)) -> CurrentUser:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Sign in is required")
     token = authorization.removeprefix("Bearer ").strip()
     auth_user = await gateway.user(token)
+    blocked = await gateway.rpc("account_is_blocked", {"_user": auth_user["id"]}, token=token)
+    permitted = request.url.path in {"/api/me", "/api/account-status", "/api/support"} or request.url.path.startswith("/api/support/")
+    if blocked and not permitted:
+        raise HTTPException(status_code=403, detail="Your account is blocked. Open Support to view the reason or request a review.")
     return CurrentUser(id=auth_user["id"], token=token)
 
 
@@ -756,12 +760,22 @@ async def impact(user: CurrentUser = Depends(current_user)) -> dict[str, Any]:
     return {"records": records}
 
 
+async def admin_all_rows(table: str, *, token: str, select: str = "*", order: str = "id.asc", filters: dict | None = None):
+    rows = []
+    while True:
+        page = await gateway.request("GET", table, token=token,
+            params={"select": select, "order": order, "limit": "200", "offset": str(len(rows)), **(filters or {})})
+        rows.extend(page or [])
+        if not page or len(page) < 200:
+            return rows
+
+
 @app.get("/api/admin/overview")
 async def admin_overview(user: CurrentUser = Depends(current_user)) -> dict[str, Any]:
     await require_role(user, "admin")
     return {
-        "profiles": await gateway.rows("profiles", token=user.token, order="created_at.desc"),
-        "roles": await gateway.rows("user_roles", token=user.token, select="user_id,role"),
+        "profiles": await admin_all_rows("profiles", token=user.token, order="created_at.desc,id.asc"),
+        "roles": await admin_all_rows("user_roles", token=user.token, select="user_id,role"),
         "listings": await gateway.rows("food_listings", token=user.token, select="id,status,donor_id,created_at"),
     }
 
@@ -769,7 +783,14 @@ async def admin_overview(user: CurrentUser = Depends(current_user)) -> dict[str,
 @app.post("/api/admin/verified")
 async def set_verified(body: VerifyProfileInput, user: CurrentUser = Depends(current_user)) -> dict[str, bool]:
     await require_role(user, "admin")
-    await gateway.request("PATCH", "profiles", token=user.token, params={"id": eq(body.id)}, json={"verified": body.verified})
+    applications = await gateway.rows("verification_requests", token=user.token, filters={"user_id": eq(body.id)})
+    if applications:
+        await gateway.rpc("review_verification", {"_user_id": str(body.id), "_approved": body.verified,
+            "_note": "Approval updated by administrator from Users section"}, token=user.token)
+    else:
+        if body.verified:
+            raise HTTPException(status_code=400, detail="Review the user's verification application first")
+        await gateway.request("PATCH", "profiles", token=user.token, params={"id": eq(body.id)}, json={"verified": False})
     return {"ok": True}
 
 
@@ -838,7 +859,7 @@ async def received_feedback(user: CurrentUser = Depends(current_user)):
 
 @app.get('/api/support')
 async def support_tickets(user: CurrentUser = Depends(current_user)):
-    return await gateway.rows('support_tickets', token=user.token, select='*,support_messages(*)', order='updated_at.desc', limit=200)
+    return await admin_all_rows('support_tickets', token=user.token, select='*,support_messages(*)', order='updated_at.desc,id.asc')
 
 
 @app.post('/api/support')
@@ -853,3 +874,45 @@ async def reply_ticket(ticket_id: UUID, body: TicketReply, user: CurrentUser = D
         await require_role(user, 'admin')
     await gateway.rpc('reply_support_ticket', {'_ticket_id': str(ticket_id), '_body': body.body, '_status': body.status}, token=user.token)
     return {'ok': True}
+
+
+class ModerationInput(BaseModel):
+    action: Literal["warning", "block", "unblock"]
+    reason: str = Field(min_length=3, max_length=1000)
+    blocked_until: AwareDatetime | None = None
+    feedback_id: UUID | None = None
+
+
+@app.get("/api/account-status")
+async def account_status(user: CurrentUser = Depends(current_user)):
+    records = await gateway.rows("account_restrictions", token=user.token, filters={"user_id": eq(user.id)})
+    return {"restriction": records[0] if records else None,
+            "blocked": await gateway.rpc("account_is_blocked", {"_user": str(user.id)}, token=user.token)}
+
+
+@app.get("/api/admin/users/{user_id}")
+async def admin_user_details(user_id: UUID, user: CurrentUser = Depends(current_user)):
+    await require_role(user, "admin")
+    profiles = await gateway.rows("profiles", token=user.token, filters={"id": eq(user_id)})
+    if not profiles:
+        raise HTTPException(status_code=404, detail="User not found")
+    active = await admin_all_rows("pickups", token=user.token,
+        select="id,status,volunteer_id,claims!inner(ngo_id,food_listings!inner(donor_id,title))",
+        filters={"status": "in.(scheduled,en_route,picked_up,delivered)"})
+    active = [p for p in active if str(user_id) in {
+        p.get("volunteer_id"), (p.get("claims") or {}).get("ngo_id"),
+        ((p.get("claims") or {}).get("food_listings") or {}).get("donor_id")}]
+    return {"profile": profiles[0],
+        "restrictions": await gateway.rows("account_restrictions", token=user.token, filters={"user_id": eq(user_id)}),
+        "actions": await admin_all_rows("moderation_actions", token=user.token, filters={"user_id": eq(user_id)}, order="created_at.desc,id.asc"),
+        "verification": await gateway.rows("verification_requests", token=user.token, filters={"user_id": eq(user_id)}),
+        "active_pickups": active}
+
+
+@app.post("/api/admin/users/{user_id}/moderation")
+async def moderate_user(user_id: UUID, body: ModerationInput, user: CurrentUser = Depends(current_user)):
+    await require_role(user, "admin")
+    await gateway.rpc("moderate_account", {"_user_id": str(user_id), "_action": body.action,
+        "_reason": body.reason, "_until": body.blocked_until.isoformat() if body.blocked_until else None,
+        "_feedback_id": str(body.feedback_id) if body.feedback_id else None}, token=user.token)
+    return {"ok": True}

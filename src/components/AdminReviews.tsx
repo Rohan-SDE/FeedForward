@@ -12,6 +12,7 @@ export default function AdminReviews({ profiles }: { profiles: Row[] }) {
     refetchInterval: 15000,
   });
   const qc = useQueryClient();
+  const [view, setView] = useState("pending");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const review = useMutation({
     mutationFn: reviewVerification,
@@ -30,43 +31,71 @@ export default function AdminReviews({ profiles }: { profiles: Row[] }) {
       </p>
       {applications.error && <p role="alert">{applications.error.message}</p>}
       {applications.isLoading && <p>Loading applications…</p>}
-      {applications.data?.length === 0 && <p>No applications yet.</p>}
-      {applications.data?.map((a) => {
-        const profile = profiles.find((p) => p.id === a.user_id);
-        return (
-          <article key={a.user_id} className="surface-panel grid gap-2 p-4">
-            <h3 className="font-semibold">
-              {profile?.org_name || profile?.full_name || a.user_id} · {a.status}
-            </h3>
-            <p className="text-sm">
-              {profile?.email} · {profile?.phone} · {profile?.address} · {profile?.city}
-            </p>
-            <p className="whitespace-pre-wrap">{a.details}</p>
-            {a.review_note && <p>Previous review: {a.review_note}</p>}
-            <Textarea
-              aria-label="Review reason"
-              placeholder="Record your verification findings or rejection reason"
-              value={notes[a.user_id] ?? ""}
-              onChange={(e) => setNotes({ ...notes, [a.user_id]: e.target.value })}
-              maxLength={1000}
-            />
-            <div className="flex gap-2">
-              {[true, false].map((approved) => (
-                <Button
-                  key={String(approved)}
-                  variant={approved ? "default" : "outline"}
-                  disabled={review.isPending || (notes[a.user_id] ?? "").trim().length < 3}
-                  onClick={() =>
-                    review.mutate({ user_id: a.user_id, approved, note: notes[a.user_id] ?? "" })
-                  }
-                >
-                  {approved ? "Approve" : "Reject / revoke"}
-                </Button>
-              ))}
-            </div>
-          </article>
-        );
-      })}
+      <div className="flex flex-wrap gap-2">
+        {["pending", "approved", "rejected"].map((status) => (
+          <Button
+            key={status}
+            variant={view === status ? "default" : "outline"}
+            onClick={() => setView(status)}
+          >
+            {status === "pending"
+              ? "Pending"
+              : status === "approved"
+                ? "Approved"
+                : "Rejected / revoked"}{" "}
+            ({applications.data?.filter((a) => a.status === status).length ?? 0})
+          </Button>
+        ))}
+      </div>
+      {applications.data?.filter((a) => a.status === view).length === 0 && (
+        <p>No {view} applications.</p>
+      )}
+      {applications.data
+        ?.filter((a) => a.status === view)
+        .map((a) => {
+          const profile = profiles.find((p) => p.id === a.user_id);
+          return (
+            <article key={a.user_id} className="surface-panel grid gap-2 p-4">
+              <h3 className="font-semibold">
+                {profile?.org_name || profile?.full_name || a.user_id} · {a.status}
+              </h3>
+              <p className="text-sm">
+                {profile?.email} · {profile?.phone} · {profile?.address} · {profile?.city}
+              </p>
+              <p className="whitespace-pre-wrap">{a.details}</p>
+              {a.review_note && <p>Previous review: {a.review_note}</p>}
+              <p className="text-xs">
+                Updated {new Date(a.updated_at).toLocaleString()}
+                {a.reviewed_by ? ` · Reviewed by ${a.reviewed_by}` : ""}
+              </p>
+              <Textarea
+                aria-label="Review reason"
+                placeholder="Record your verification findings or rejection reason"
+                value={notes[a.user_id] ?? ""}
+                onChange={(e) => setNotes({ ...notes, [a.user_id]: e.target.value })}
+                maxLength={1000}
+              />
+              <div className="flex gap-2">
+                {[true, false].map((approved) => (
+                  <Button
+                    key={String(approved)}
+                    variant={approved ? "default" : "outline"}
+                    disabled={
+                      review.isPending ||
+                      (approved && a.status === "approved") ||
+                      (notes[a.user_id] ?? "").trim().length < 3
+                    }
+                    onClick={() =>
+                      review.mutate({ user_id: a.user_id, approved, note: notes[a.user_id] ?? "" })
+                    }
+                  >
+                    {approved ? "Approve" : "Reject / revoke"}
+                  </Button>
+                ))}
+              </div>
+            </article>
+          );
+        })}
     </section>
   );
 }
