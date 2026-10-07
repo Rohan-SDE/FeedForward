@@ -15,6 +15,15 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+*.before-*
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -30,3 +39,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Deployment templates are safe; real environment files are not.
+!.env.production.example
+*.pem
+*.key
+supabase/.temp/
+playwright-report/
+test-results/

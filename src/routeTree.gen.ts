@@ -11,15 +11,21 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDonateRouteImport } from './routes/_authenticated/donate'
+import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
 import { Route as AuthenticatedImpactRouteImport } from './routes/_authenticated/impact'
 import { Route as AuthenticatedListingsRouteImport } from './routes/_authenticated/listings'
+import { Route as AuthenticatedNgosRouteImport } from './routes/_authenticated/ngos'
 import { Route as AuthenticatedPickupsRouteImport } from './routes/_authenticated/pickups'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
+import { Route as AdminLoginRouteImport } from './routes/admin_.login'
+import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
+import { Route as AuthenticatedDeliveryPickupIdRouteImport } from './routes/_authenticated/delivery.$pickupId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -40,11 +51,6 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -53,6 +59,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedDonateRoute = AuthenticatedDonateRouteImport.update({
   id: '/donate',
   path: '/donate',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHistoryRoute = AuthenticatedHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedImpactRoute = AuthenticatedImpactRouteImport.update({
@@ -65,6 +76,11 @@ const AuthenticatedListingsRoute = AuthenticatedListingsRouteImport.update({
   path: '/listings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNgosRoute = AuthenticatedNgosRouteImport.update({
+  id: '/ngos',
+  path: '/ngos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPickupsRoute = AuthenticatedPickupsRouteImport.update({
   id: '/pickups',
   path: '/pickups',
@@ -75,90 +91,150 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin_/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth_/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDeliveryPickupIdRoute =
+  AuthenticatedDeliveryPickupIdRouteImport.update({
+    id: '/delivery/$pickupId',
+    path: '/delivery/$pickupId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/donate': typeof AuthenticatedDonateRoute
+  '/history': typeof AuthenticatedHistoryRoute
   '/impact': typeof AuthenticatedImpactRoute
   '/listings': typeof AuthenticatedListingsRoute
+  '/ngos': typeof AuthenticatedNgosRoute
   '/pickups': typeof AuthenticatedPickupsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/support': typeof AuthenticatedSupportRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/delivery/$pickupId': typeof AuthenticatedDeliveryPickupIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/donate': typeof AuthenticatedDonateRoute
+  '/history': typeof AuthenticatedHistoryRoute
   '/impact': typeof AuthenticatedImpactRoute
   '/listings': typeof AuthenticatedListingsRoute
+  '/ngos': typeof AuthenticatedNgosRoute
   '/pickups': typeof AuthenticatedPickupsRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/support': typeof AuthenticatedSupportRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/delivery/$pickupId': typeof AuthenticatedDeliveryPickupIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/donate': typeof AuthenticatedDonateRoute
+  '/_authenticated/history': typeof AuthenticatedHistoryRoute
   '/_authenticated/impact': typeof AuthenticatedImpactRoute
   '/_authenticated/listings': typeof AuthenticatedListingsRoute
+  '/_authenticated/ngos': typeof AuthenticatedNgosRoute
   '/_authenticated/pickups': typeof AuthenticatedPickupsRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/support': typeof AuthenticatedSupportRoute
+  '/admin_/login': typeof AdminLoginRoute
+  '/auth_/callback': typeof AuthCallbackRoute
+  '/_authenticated/delivery/$pickupId': typeof AuthenticatedDeliveryPickupIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/auth'
     | '/sitemap.xml'
-    | '/admin'
     | '/dashboard'
     | '/donate'
+    | '/history'
     | '/impact'
     | '/listings'
+    | '/ngos'
     | '/pickups'
     | '/profile'
+    | '/support'
+    | '/admin/login'
+    | '/auth/callback'
+    | '/delivery/$pickupId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/auth'
     | '/sitemap.xml'
-    | '/admin'
     | '/dashboard'
     | '/donate'
+    | '/history'
     | '/impact'
     | '/listings'
+    | '/ngos'
     | '/pickups'
     | '/profile'
+    | '/support'
+    | '/admin/login'
+    | '/auth/callback'
+    | '/delivery/$pickupId'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/admin'
     | '/auth'
     | '/sitemap.xml'
-    | '/_authenticated/admin'
     | '/_authenticated/dashboard'
     | '/_authenticated/donate'
+    | '/_authenticated/history'
     | '/_authenticated/impact'
     | '/_authenticated/listings'
+    | '/_authenticated/ngos'
     | '/_authenticated/pickups'
     | '/_authenticated/profile'
+    | '/_authenticated/support'
+    | '/admin_/login'
+    | '/auth_/callback'
+    | '/_authenticated/delivery/$pickupId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AdminRoute: typeof AdminRoute
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -177,6 +253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -191,13 +274,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin': {
-      id: '/_authenticated/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -210,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/donate'
       fullPath: '/donate'
       preLoaderRoute: typeof AuthenticatedDonateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/history': {
+      id: '/_authenticated/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof AuthenticatedHistoryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/impact': {
@@ -226,6 +309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedListingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ngos': {
+      id: '/_authenticated/ngos'
+      path: '/ngos'
+      fullPath: '/ngos'
+      preLoaderRoute: typeof AuthenticatedNgosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/pickups': {
       id: '/_authenticated/pickups'
       path: '/pickups'
@@ -240,27 +330,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/support': {
+      id: '/_authenticated/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof AuthenticatedSupportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/admin_/login': {
+      id: '/admin_/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth_/callback': {
+      id: '/auth_/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/delivery/$pickupId': {
+      id: '/_authenticated/delivery/$pickupId'
+      path: '/delivery/$pickupId'
+      fullPath: '/delivery/$pickupId'
+      preLoaderRoute: typeof AuthenticatedDeliveryPickupIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDonateRoute: typeof AuthenticatedDonateRoute
+  AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
   AuthenticatedImpactRoute: typeof AuthenticatedImpactRoute
   AuthenticatedListingsRoute: typeof AuthenticatedListingsRoute
+  AuthenticatedNgosRoute: typeof AuthenticatedNgosRoute
   AuthenticatedPickupsRoute: typeof AuthenticatedPickupsRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
+  AuthenticatedDeliveryPickupIdRoute: typeof AuthenticatedDeliveryPickupIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDonateRoute: AuthenticatedDonateRoute,
+  AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
   AuthenticatedImpactRoute: AuthenticatedImpactRoute,
   AuthenticatedListingsRoute: AuthenticatedListingsRoute,
+  AuthenticatedNgosRoute: AuthenticatedNgosRoute,
   AuthenticatedPickupsRoute: AuthenticatedPickupsRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedSupportRoute: AuthenticatedSupportRoute,
+  AuthenticatedDeliveryPickupIdRoute: AuthenticatedDeliveryPickupIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -269,8 +393,11 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AdminRoute: AdminRoute,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

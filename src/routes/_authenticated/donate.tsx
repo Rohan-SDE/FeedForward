@@ -1,10 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, PackagePlus, Trash2 } from "lucide-react";
-import { cancelListing, createListing, myListings } from "@/lib/feedforward.functions";
+import {
+  cancelListing,
+  updatePreparation,
+  createListing,
+  myListings,
+  uploadFoodPhoto,
+} from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import type { Row } from "@/lib/rows";
 import {
@@ -16,6 +21,7 @@ import {
   type StorageTemp,
 } from "@/lib/food";
 import { UrgencyBadge } from "@/components/UrgencyBadge";
+import FoodPhoto from "@/components/FoodPhoto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,10 +62,11 @@ function Donate() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const mine = useQuery({ queryKey: ["myListings"], queryFn: useServerFn(myListings) });
+  const canDonate = !!me?.roles.some((role) => role === "donor" || role === "admin");
+  const mine = useQuery({ queryKey: ["myListings"], queryFn: myListings });
 
   const create = useMutation({
-    mutationFn: useServerFn(createListing),
+    mutationFn: createListing,
     onSuccess: () => {
       toast.success("Posted — nearby NGOs can now claim it");
       qc.invalidateQueries();
@@ -67,8 +74,16 @@ function Donate() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const preparation = useMutation({
+    mutationFn: updatePreparation,
+    onSuccess: () => {
+      toast.success("Preparation updated");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const cancel = useMutation({
-    mutationFn: useServerFn(cancelListing),
+    mutationFn: cancelListing,
     onSuccess: () => {
       toast.success("Listing cancelled");
       qc.invalidateQueries();
@@ -86,6 +101,14 @@ function Donate() {
   const [storage, setStorage] = useState<StorageTemp>("hot");
   const [allergens, setAllergens] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  const upload = useMutation({
+    mutationFn: uploadFoodPhoto,
+    onSuccess: (result) => {
+      setPhotoUrl(result.url);
+      toast.success("Photo uploaded");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const [preparedAt, setPreparedAt] = useState(localInput(now));
   const [bestBefore, setBestBefore] = useState(
     localInput(new Date(now.getTime() + SAFE_WINDOW_HOURS.hot * 3_600_000)),
@@ -96,6 +119,16 @@ function Donate() {
   const [lng, setLng] = useState(
     me?.profile?.longitude != null ? String(me.profile.longitude) : "",
   );
+  const profileApplied = useRef(false);
+
+  useEffect(() => {
+    if (!me?.profile || profileApplied.current) return;
+    profileApplied.current = true;
+    setAddress((current) => current || String(me.profile?.address ?? ""));
+    setCity((current) => current || String(me.profile?.city ?? ""));
+    setLat((current) => current || String(me.profile?.latitude ?? ""));
+    setLng((current) => current || String(me.profile?.longitude ?? ""));
+  }, [me]);
 
   function applyStorage(next: StorageTemp) {
     setStorage(next);
@@ -151,12 +184,28 @@ function Donate() {
     });
   }
 
+  if (me && !canDonate) {
+    return (
+      <div className="surface-panel mx-auto max-w-xl p-8 text-center">
+        <h1 className="text-2xl font-bold">Donor access required</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Only donor accounts can post surplus food. Volunteer and NGO accounts can help through the
+          nearby food and pickup workflows.
+        </p>
+        <Button className="mt-5" onClick={() => navigate({ to: "/dashboard" })}>
+          Return to dashboard
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
       <div>
         <h1 className="text-3xl font-bold">Post surplus food</h1>
         <p className="mt-1 text-muted-foreground">
-          The safe window is pre-filled from the storage type — adjust it if you know better.
+          Check preparation, storage and best-before times carefully. Suggested times do not
+          guarantee food safety.
         </p>
 
         <form onSubmit={submit} className="surface-panel mt-6 grid gap-5 p-6">
@@ -294,17 +343,38 @@ function Donate() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="photo">Photo URL</Label>
+              <Label htmlFor="photo">Food photo</Label>
               <Input
                 id="photo"
-                type="url"
-                maxLength={600}
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.target.value)}
-                placeholder="https://…"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={upload.isPending || create.isPending}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    toast.error("Choose a photo under 5 MB");
+                    return;
+                  }
+                  setPhotoUrl("");
+                  upload.mutate(file);
+                  e.target.value = "";
+                }}
               />
+              <p className="text-xs text-muted-foreground" role="status">
+                {upload.isPending
+                  ? "Uploading photo…"
+                  : "JPEG, PNG or WebP · up to 5 MB. Food photos are publicly viewable; avoid faces and personal information."}
+              </p>
             </div>
           </div>
+
+          {photoUrl.trim() && (
+            <div className="grid gap-2">
+              <Label>Photo preview</Label>
+              <FoodPhoto src={photoUrl} alt="Food photo preview" className="h-56 w-full" />
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="addr">Pickup address</Label>
@@ -339,7 +409,7 @@ function Donate() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={create.isPending}>
+            <Button type="submit" disabled={create.isPending || upload.isPending}>
               {create.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : (
@@ -358,6 +428,7 @@ function Donate() {
         <h2 className="text-lg font-semibold">My posts</h2>
         {(mine.data ?? []).map((l: Row) => (
           <div key={l.id} className="surface-panel p-4">
+            <FoodPhoto src={l.photo_url} alt={`${l.title} food`} className="mb-3 h-32 w-full" />
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-medium">{l.title}</p>
@@ -368,6 +439,21 @@ function Donate() {
               <UrgencyBadge bestBefore={l.best_before} status={l.status} />
             </div>
             {["posted", "claimed"].includes(l.status) && (
+              <label className="mt-3 block text-sm">
+                Preparation status
+                <select
+                  className="ml-2 rounded border bg-background p-2"
+                  value={l.preparation_status ?? "preparing"}
+                  disabled={preparation.isPending}
+                  onChange={(e) => preparation.mutate({ id: String(l.id), status: e.target.value })}
+                >
+                  <option value="preparing">Preparing order</option>
+                  <option value="ready">Ready for pickup</option>
+                  <option value="delayed">Preparation delayed</option>
+                </select>
+              </label>
+            )}
+            {["posted", "claimed", "expired"].includes(l.status) && (
               <Button
                 size="sm"
                 variant="ghost"

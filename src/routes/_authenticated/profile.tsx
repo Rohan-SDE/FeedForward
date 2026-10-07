@@ -1,9 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { saveProfile } from "@/lib/feedforward.functions";
+import { saveProfile, setMyRole } from "@/lib/feedforward.functions";
 import { useMe } from "@/hooks/useMe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,14 +31,24 @@ function Profile() {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const save = useMutation({
-    mutationFn: useServerFn(saveProfile),
+    mutationFn: saveProfile,
     onSuccess: () => {
       toast.success("Profile saved");
       qc.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const chooseRole = useMutation({
+    mutationFn: setMyRole,
+    onSuccess: () => {
+      toast.success("Account role saved");
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
+  const isRider = !!me?.roles.includes("volunteer");
+  const needsApproval = !!me?.roles.some((role) => role === "donor" || role === "ngo");
   const [form, setForm] = useState({
     full_name: "",
     org_name: "",
@@ -115,11 +124,50 @@ function Profile() {
         {me?.roles?.length ? (
           <p className="mt-2 text-sm text-muted-foreground">
             Roles: <span className="font-medium text-foreground">{me.roles.join(", ")}</span>
-            {me.profile?.verified ? " · verified" : " · pending verification"}
+            {needsApproval
+              ? me.profile?.verified
+                ? " · approved"
+                : " · pending administrator approval"
+              : isRider
+                ? " · individual contributor"
+                : ""}
           </p>
         ) : null}
       </div>
 
+      {me && !me.roles.length && (
+        <section className="surface-panel p-6">
+          <h2 className="text-lg font-semibold">Choose your account role</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This choice controls what your account can do and cannot be changed later without an
+            administrator.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(["donor", "ngo", "volunteer"] as const).map((role) => (
+              <Button
+                key={role}
+                type="button"
+                variant="outline"
+                disabled={chooseRole.isPending}
+                onClick={() => chooseRole.mutate({ data: { role } })}
+              >
+                {role === "ngo"
+                  ? "NGO / shelter"
+                  : role === "volunteer"
+                    ? "Rider / individual contributor"
+                    : "Donor"}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {isRider && (
+        <p className="text-sm text-muted-foreground">
+          No organisation is required for individual riders. Add your contact details and location
+          to find nearby delivery requests.
+        </p>
+      )}
       <form onSubmit={submit} className="surface-panel grid gap-5 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -133,10 +181,13 @@ function Profile() {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="on">Organisation</Label>
+            <Label htmlFor="on">{isRider ? "Organisation (optional)" : "Organisation"}</Label>
             <Input
               id="on"
               maxLength={160}
+              placeholder={
+                isRider ? "Leave blank if you deliver independently" : "Organisation name"
+              }
               value={form.org_name}
               onChange={(e) => set("org_name", e.target.value)}
             />
@@ -145,7 +196,7 @@ function Profile() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="ph">Phone</Label>
+            <Label htmlFor="ph">Contact phone</Label>
             <Input
               id="ph"
               maxLength={32}
@@ -205,7 +256,7 @@ function Profile() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="submit" disabled={save.isPending || !me?.roles.length}>
             Save profile
           </Button>
           <Button type="button" variant="outline" onClick={locate}>
@@ -213,6 +264,11 @@ function Profile() {
           </Button>
         </div>
       </form>
+      {!!me?.roles.length && (
+        <Link to="/dashboard" className="text-sm underline">
+          Continue to dashboard
+        </Link>
+      )}
     </div>
   );
 }
