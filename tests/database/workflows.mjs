@@ -30,11 +30,14 @@ const ids = Object.fromEntries(
   ]),
 );
 for (const [r, id] of Object.entries(ids)) {
-  await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)", [
-    id,
-    `${r}@example.test`,
-    JSON.stringify({ role: r === "ngo2" ? "ngo" : r === "other" ? "volunteer" : r }),
-  ]);
+  await db.query(
+    'INSERT INTO auth.users(id,email,raw_user_meta_data,raw_app_meta_data) VALUES($1,$2,$3,\'{"provider":"google","providers":["google"]}\')',
+    [
+      id,
+      `${r}@example.test`,
+      JSON.stringify({ role: r === "ngo2" ? "ngo" : r === "other" ? "volunteer" : r }),
+    ],
+  );
   await db.query("UPDATE public.profiles SET latitude=22,longitude=88 WHERE id=$1", [id]);
 }
 await db.query("INSERT INTO public.user_roles(user_id,role) VALUES($1,'admin')", [ids.admin]);
@@ -83,8 +86,8 @@ async function schedule(c) {
     )
   )[0];
 }
-await test("all 18 migrations apply", async () =>
-  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 18));
+await test("all 19 migrations apply", async () =>
+  assert.equal(fs.readdirSync(`${root}/supabase/migrations`).length, 19));
 await test("volunteer donation denied", async () => {
   await assert.rejects(
     asUser(
@@ -767,11 +770,14 @@ await test("resolved support retains messages and can be reopened", async () => 
 
 await test("Google-style signup starts unapproved and without an implicit role", async () => {
   ids.google = "00000000-0000-0000-0000-000000009001";
-  await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)", [
-    ids.google,
-    "google@example.test",
-    JSON.stringify({ full_name: "Google participant", provider_id: "sample" }),
-  ]);
+  await db.query(
+    'INSERT INTO auth.users(id,email,raw_user_meta_data,raw_app_meta_data) VALUES($1,$2,$3,\'{"provider":"google","providers":["google"]}\')',
+    [
+      ids.google,
+      "google@example.test",
+      JSON.stringify({ full_name: "Google participant", provider_id: "sample" }),
+    ],
+  );
   const profile = (await db.query("SELECT * FROM public.profiles WHERE id=$1", [ids.google]))
     .rows[0];
   assert.equal(profile.full_name, "Google participant");
@@ -793,18 +799,38 @@ await test("Google-style signup starts unapproved and without an implicit role",
     asUser("google", "INSERT INTO public.user_roles(user_id,role) VALUES(auth.uid(),'donor')"),
   );
 });
-await test("email riders can register without any organisation", async () => {
+await test("email riders cannot register even with forged Google user metadata", async () => {
   const id = "00000000-0000-0000-0000-000000009002";
-  await db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)", [
-    id,
-    "rider@example.test",
-    JSON.stringify({ full_name: "Independent rider", org_name: null, role: "volunteer" }),
+  await assert.rejects(
+    db.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)", [
+      id,
+      "rider@example.test",
+      JSON.stringify({
+        full_name: "Independent rider",
+        role: "volunteer",
+        provider: "google",
+        providers: ["google"],
+      }),
+    ]),
+    /Riders must create their account with Google/,
+  );
+});
+await test("email-only onboarding cannot insert a rider role directly", async () => {
+  ids.emailOnly = "00000000-0000-0000-0000-000000009004";
+  await db.query("INSERT INTO auth.users(id,email) VALUES($1,$2)", [
+    ids.emailOnly,
+    "email@example.test",
   ]);
-  const profile = (await db.query("SELECT * FROM public.profiles WHERE id=$1", [id])).rows[0];
-  assert.equal(profile.org_name, null);
-  assert.equal(
-    (await db.query("SELECT role FROM public.user_roles WHERE user_id=$1", [id])).rows[0].role,
-    "volunteer",
+  await assert.rejects(
+    asUser(
+      "emailOnly",
+      "INSERT INTO public.user_roles(user_id,role) VALUES(auth.uid(),'volunteer')",
+    ),
+    /Riders must create their account with Google/,
+  );
+  await asUser(
+    "emailOnly",
+    "INSERT INTO public.user_roles(user_id,role) VALUES(auth.uid(),'donor')",
   );
 });
 await test("phone-only signup permits null email and requires role onboarding", async () => {
