@@ -108,6 +108,10 @@ function AuthPage() {
 
   async function signUp(e: React.FormEvent) {
     e.preventDefault();
+    if (role === "volunteer") {
+      toast.error("Riders must create their account with Google.");
+      return;
+    }
     if (!fullName.trim()) {
       toast.error("Please add your name");
       return;
@@ -270,75 +274,70 @@ function AuthPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="su-name">Your name</Label>
-                    <Input
-                      id="su-name"
-                      required
-                      maxLength={120}
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="su-org">
-                      {role === "volunteer" ? "Organisation (optional)" : "Organisation"}
-                    </Label>
-                    <Input
-                      id="su-org"
-                      maxLength={160}
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      placeholder={
-                        role === "volunteer"
-                          ? "Leave blank if you deliver independently"
-                          : "Organisation name"
-                      }
-                      aria-describedby={
-                        role === "volunteer" ? "rider-organisation-help" : undefined
-                      }
-                    />
-                  </div>
-                  {role === "volunteer" && (
-                    <p id="rider-organisation-help" className="text-sm text-muted-foreground">
-                      Riders are individual contributors. You do not need to belong to an
-                      organisation.
+                  {role === "volunteer" ? (
+                    <p className="text-sm text-muted-foreground">
+                      Riders must create their account using Continue with Google below. After
+                      signing in, choose Rider and complete your profile. No email or password entry
+                      is needed.
                     </p>
+                  ) : (
+                    <>
+                      <div className="grid gap-2">
+                        <Label htmlFor="su-name">Your name</Label>
+                        <Input
+                          id="su-name"
+                          required
+                          maxLength={120}
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="su-org">Organisation</Label>
+                        <Input
+                          id="su-org"
+                          maxLength={160}
+                          value={orgName}
+                          onChange={(e) => setOrgName(e.target.value)}
+                          placeholder="Organisation name"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="su-phone">Phone</Label>
+                        <Input
+                          id="su-phone"
+                          maxLength={32}
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="su-email">Email</Label>
+                        <Input
+                          id="su-email"
+                          type="email"
+                          required
+                          maxLength={255}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="su-pass">Password</Label>
+                        <Input
+                          id="su-pass"
+                          type="password"
+                          required
+                          minLength={12}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
+                      </div>
+                      <Button type="submit" disabled={busy} className="mt-2">
+                        {busy && <Loader2 className="mr-2 size-4 animate-spin" />} Create account
+                      </Button>
+                    </>
                   )}
-                  <div className="grid gap-2">
-                    <Label htmlFor="su-phone">Phone</Label>
-                    <Input
-                      id="su-phone"
-                      maxLength={32}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="su-email">Email</Label>
-                    <Input
-                      id="su-email"
-                      type="email"
-                      required
-                      maxLength={255}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="su-pass">Password</Label>
-                    <Input
-                      id="su-pass"
-                      type="password"
-                      required
-                      minLength={12}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                  <Button type="submit" disabled={busy} className="mt-2">
-                    {busy && <Loader2 className="mr-2 size-4 animate-spin" />} Create account
-                  </Button>
                 </form>
               </TabsContent>
             </Tabs>

@@ -305,6 +305,10 @@ async def set_role(body: RoleInput, user: CurrentUser = Depends(current_user)) -
         if body.role in existing:
             return {"ok": True}
         raise HTTPException(status_code=409, detail=f"Account is already registered as {existing[0]}")
+    if body.role == "volunteer":
+        auth_user = await gateway.user(user.token)
+        if not any(identity.get("provider") == "google" for identity in (auth_user.get("identities") or [])):
+            raise HTTPException(status_code=403, detail="Riders must create their account with Google. Sign in with Google, then choose Rider.")
     await gateway.request(
         "POST", "user_roles", token=user.token,
         json={"user_id": str(user.id), "role": body.role}, prefer="return=minimal"

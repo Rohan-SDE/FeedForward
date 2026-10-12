@@ -140,7 +140,7 @@ function Profile() {
           <h2 className="text-lg font-semibold">Choose your account role</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             This choice controls what your account can do and cannot be changed later without an
-            administrator.
+            administrator. Riders must register through Google.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {(["donor", "ngo", "volunteer"] as const).map((role) => (
